@@ -1,0 +1,7 @@
+# Copy to backend/ml/data/dataset.yaml and adjust `path` to your actual data location.
+path: backend/ml/data       # root folder containing images/ and labels/
+train: images/train
+val: images/val
+
+names:
+  0: pill
