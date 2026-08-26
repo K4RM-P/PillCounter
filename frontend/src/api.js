@@ -20,7 +20,9 @@ function authHeaders() {
 // than the backend, a firewalled IP, etc. — since the browser's own
 // connection timeout is 60-120s. Cut that down to something a person
 // will actually wait out, with an error message that says what happened.
-const REQUEST_TIMEOUT_MS = 15000
+// Kept above Render's free-tier cold-start time (~20-50s after idle) so a
+// sleeping backend gets a chance to wake up instead of aborting on it.
+const REQUEST_TIMEOUT_MS = 60000
 
 async function fetchWithTimeout(url, options = {}) {
   const controller = new AbortController()
@@ -28,7 +30,9 @@ async function fetchWithTimeout(url, options = {}) {
   try {
     return await fetch(url, { ...options, signal: controller.signal })
   } catch {
-    throw new Error(`Couldn't reach the server at ${API_BASE_URL} — check you're on the same network.`)
+    throw new Error(
+      `Couldn't reach the server at ${API_BASE_URL} — check your connection, or the server may still be waking up (try again in a moment).`,
+    )
   } finally {
     clearTimeout(timer)
   }
