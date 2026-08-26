@@ -21,7 +21,7 @@ export default function MarkerOverlay({ imageUrl, markers, onAddMarker, onRemove
         src={imageUrl}
         alt="Pill count"
         onClick={handleImageClick}
-        style={{ display: 'block', maxWidth: '100%', borderRadius: 12, cursor: editable ? 'crosshair' : 'default' }}
+        style={{ display: 'block', maxWidth: '100%', maxHeight: '46vh', width: 'auto', borderRadius: 16, cursor: editable ? 'crosshair' : 'default' }}
       />
       {markers.map((marker, index) => (
         <div

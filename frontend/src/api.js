@@ -1,6 +1,10 @@
 import { clearToken, getToken } from './auth'
 
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
+// Falls back to the page's own hostname (not a hardcoded "localhost") so the
+// app also works when opened from a phone over LAN at the dev machine's IP —
+// "localhost" from the phone's perspective would otherwise mean the phone itself.
+export const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL || `${window.location.protocol}//${window.location.hostname}:8000`
 
 export function mediaUrl(imageId) {
   return `${API_BASE_URL}/media/${imageId}.jpg`
