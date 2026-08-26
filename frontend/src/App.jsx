@@ -6,7 +6,6 @@ import HistoryPage from './pages/HistoryPage'
 import HistoryDetailPage from './pages/HistoryDetailPage'
 import LoginPage from './pages/LoginPage'
 import RequireAuth from './components/RequireAuth'
-import Disclaimer from './components/Disclaimer'
 import { clearToken, isAuthenticated } from './auth'
 import { applyTheme, getTheme, toggleTheme } from './theme'
 import { flushQueue, queueLength } from './offlineQueue'
@@ -53,16 +52,13 @@ function App() {
     <>
       {showChrome && (
         <div className="app-header no-print">
-          <div>
-            <div className="greeting-eyebrow">Welcome to</div>
-            <div className="greeting-title">PillCount</div>
-          </div>
-          <div className="row" style={{ gap: 8 }}>
+          <div className="greeting-title">PillCount</div>
+          <div className="row" style={{ gap: 6 }}>
             {pending > 0 && <span className="badge badge-warn">{pending} pending</span>}
             <button className="btn btn-icon" onClick={handleToggleTheme} title="Toggle dark mode" aria-label="Toggle dark mode">
               {dark ? <SunIcon /> : <MoonIcon />}
             </button>
-            <button className="avatar-btn" onClick={handleLogout} title="Log out" aria-label="Log out">
+            <button className="btn btn-icon" onClick={handleLogout} title="Log out" aria-label="Log out">
               <LogoutIcon />
             </button>
           </div>
@@ -109,19 +105,17 @@ function App() {
         <nav className="bottom-nav no-print">
           <Link to="/" className={`navlink${location.pathname === '/' ? ' active' : ''}`}>
             <CameraIcon />
-            Count
+            <span>Count</span>
           </Link>
-          <Link to="/history" className={`navlink${location.pathname.startsWith('/history') ? ' active' : ''}`} style={{ position: 'relative' }}>
-            <HistoryIcon />
-            History
-            {pending > 0 && <span className="badge-dot" />}
+          <Link to="/history" className={`navlink${location.pathname.startsWith('/history') ? ' active' : ''}`}>
+            <span className="navlink-icon-wrap">
+              <HistoryIcon />
+              {pending > 0 && <span className="badge-dot" />}
+            </span>
+            <span>History</span>
           </Link>
         </nav>
       )}
-
-      <footer className="page no-print" style={{ paddingTop: 0, borderTop: '1px solid var(--border)' }}>
-        <Disclaimer />
-      </footer>
     </>
   )
 }

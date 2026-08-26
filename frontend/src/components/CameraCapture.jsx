@@ -61,12 +61,16 @@ export default function CameraCapture({ onCapture, onUnavailable }) {
   if (error) return null
 
   return (
-    <div className="stack">
-      <div style={{ position: 'relative', borderRadius: 14, overflow: 'hidden', border: '1px solid var(--border)', background: '#000' }}>
-        <video ref={videoRef} playsInline muted style={{ display: 'block', width: '100%', maxHeight: 420, objectFit: 'cover' }} />
-      </div>
-      <button className="btn btn-primary" onClick={handleShutter} disabled={!ready} style={{ alignSelf: 'center', width: 72, height: 72, borderRadius: '50%', fontSize: 0 }}>
-        <span style={{ width: 24, height: 24, borderRadius: '50%', background: '#fff' }} />
+    <div className="camera-frame">
+      <video ref={videoRef} playsInline muted className="camera-video" />
+      {!ready && <div className="camera-loading">Starting camera...</div>}
+      <button
+        className="shutter-btn"
+        onClick={handleShutter}
+        disabled={!ready}
+        aria-label="Take photo"
+      >
+        <span className="shutter-btn-ring" />
       </button>
     </div>
   )
