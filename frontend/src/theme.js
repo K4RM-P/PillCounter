@@ -1,7 +1,7 @@
 const THEME_KEY = 'pillcount_theme'
 
 export function getTheme() {
-  return localStorage.getItem(THEME_KEY) || 'system'
+  return localStorage.getItem(THEME_KEY) || 'light'
 }
 
 export function applyTheme(theme) {

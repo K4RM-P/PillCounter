@@ -66,37 +66,40 @@ export default function CapturePage() {
           Offline — photo saved on this device, will upload automatically when back online.
         </p>
       )}
-      {loading && <p className="hint">Processing photo...</p>}
 
-      {!loading && !cameraUnavailable && (
-        <CameraCapture onCapture={handleCameraCapture} onUnavailable={() => setCameraUnavailable(true)} />
-      )}
+      <div className="card stack">
+        {loading && <p className="hint">Processing photo...</p>}
 
-      {!loading && (
-        <div className="row" style={{ maxWidth: 320 }}>
-          {cameraUnavailable && (
-            <label className="btn btn-primary" style={{ flex: 1 }}>
-              Take Photo
+        {!loading && !cameraUnavailable && (
+          <CameraCapture onCapture={handleCameraCapture} onUnavailable={() => setCameraUnavailable(true)} />
+        )}
+
+        {!loading && (
+          <div className="stack">
+            {cameraUnavailable && (
+              <label className="btn btn-primary">
+                Take Photo
+                <input
+                  type="file"
+                  accept="image/*,.heic,.heif"
+                  capture="environment"
+                  style={{ display: 'none' }}
+                  onChange={(e) => handleFile(e.target.files[0])}
+                />
+              </label>
+            )}
+            <label className="btn">
+              Upload Photo
               <input
                 type="file"
                 accept="image/*,.heic,.heif"
-                capture="environment"
                 style={{ display: 'none' }}
                 onChange={(e) => handleFile(e.target.files[0])}
               />
             </label>
-          )}
-          <label className="btn" style={{ flex: 1 }}>
-            Upload Photo
-            <input
-              type="file"
-              accept="image/*,.heic,.heif"
-              style={{ display: 'none' }}
-              onChange={(e) => handleFile(e.target.files[0])}
-            />
-          </label>
-        </div>
-      )}
+          </div>
+        )}
+      </div>
     </div>
   )
 }

@@ -60,10 +60,10 @@ function App() {
           <div className="row" style={{ gap: 8 }}>
             {pending > 0 && <span className="badge badge-warn">{pending} pending</span>}
             <button className="btn btn-icon" onClick={handleToggleTheme} title="Toggle dark mode" aria-label="Toggle dark mode">
-              {dark ? '☀️' : '🌙'}
+              {dark ? <SunIcon /> : <MoonIcon />}
             </button>
             <button className="avatar-btn" onClick={handleLogout} title="Log out" aria-label="Log out">
-              ⏻
+              <LogoutIcon />
             </button>
           </div>
         </div>
@@ -108,11 +108,11 @@ function App() {
       {showChrome && (
         <nav className="bottom-nav no-print">
           <Link to="/" className={`navlink${location.pathname === '/' ? ' active' : ''}`}>
-            <span className="icon">📷</span>
+            <CameraIcon />
             Count
           </Link>
           <Link to="/history" className={`navlink${location.pathname.startsWith('/history') ? ' active' : ''}`} style={{ position: 'relative' }}>
-            <span className="icon">🗂️</span>
+            <HistoryIcon />
             History
             {pending > 0 && <span className="badge-dot" />}
           </Link>
@@ -123,6 +123,52 @@ function App() {
         <Disclaimer />
       </footer>
     </>
+  )
+}
+
+function SunIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+      <circle cx="12" cy="12" r="4" />
+      <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
+    </svg>
+  )
+}
+
+function MoonIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M20.4 14.7A8.5 8.5 0 1 1 9.3 3.6a7 7 0 0 0 11.1 11.1Z" />
+    </svg>
+  )
+}
+
+function LogoutIcon() {
+  return (
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+      <polyline points="16 17 21 12 16 7" />
+      <line x1="21" y1="12" x2="9" y2="12" />
+    </svg>
+  )
+}
+
+function CameraIcon() {
+  return (
+    <svg className="icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2Z" />
+      <circle cx="12" cy="13" r="4" />
+    </svg>
+  )
+}
+
+function HistoryIcon() {
+  return (
+    <svg className="icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 3v5h5" />
+      <path d="M3.05 13a9 9 0 1 0 .5-4.5L3 8" />
+      <path d="M12 7v5l4 2" />
+    </svg>
   )
 }
 
