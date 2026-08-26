@@ -19,7 +19,6 @@ export default function CapturePage() {
     setQueued(false)
     try {
       const blob = await downscaleImage(file)
-      const dims = await getImageDimensions(blob)
       let result
       try {
         result = await uploadForCount(blob)
@@ -32,9 +31,15 @@ export default function CapturePage() {
         throw err
       }
 
+      // Normalize against the width/height the server actually computed
+      // detections against (from decoding the exact uploaded bytes) rather
+      // than a separate client-side re-measurement of the same blob — two
+      // measurements of "the same" image that could drift apart (browser
+      // decode quirks, EXIF handling differences) is exactly the kind of
+      // mismatch that silently misaligns every marker.
       const markers = result.detections.map((d) => ({
-        x: d.x / dims.width,
-        y: d.y / dims.height,
+        x: d.x / result.width,
+        y: d.y / result.height,
         confidence: d.confidence,
       }))
 
@@ -105,20 +110,4 @@ export default function CapturePage() {
       )}
     </div>
   )
-}
-
-function getImageDimensions(blob) {
-  return new Promise((resolve, reject) => {
-    const img = new Image()
-    const url = URL.createObjectURL(blob)
-    img.onload = () => {
-      URL.revokeObjectURL(url)
-      resolve({ width: img.width, height: img.height })
-    }
-    img.onerror = () => {
-      URL.revokeObjectURL(url)
-      reject(new Error('Failed to read image dimensions'))
-    }
-    img.src = url
-  })
 }

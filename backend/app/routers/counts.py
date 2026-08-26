@@ -22,12 +22,15 @@ async def count_image(file: UploadFile):
     if image is None:
         raise HTTPException(status_code=400, detail="Could not decode image")
 
+    height, width = image.shape[:2]
     detections = count_pills(image)
     detections = [d for d in detections if d["confidence"] >= settings.CONFIDENCE_THRESHOLD]
 
     image_id = save_image(data)
 
-    return CountResponse(image_id=image_id, count=len(detections), detections=detections)
+    return CountResponse(
+        image_id=image_id, count=len(detections), detections=detections, width=width, height=height
+    )
 
 
 @router.post("/counts", response_model=CountOut)

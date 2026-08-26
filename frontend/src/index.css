@@ -353,7 +353,11 @@ code {
   display: block;
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  /* `cover` would crop the preview to fill the frame, but the shutter
+     captures the full uncropped sensor frame (see CameraCapture.jsx) — using
+     `contain` keeps the preview showing exactly what gets captured, so
+     there's no region a pill could sit in that the user never saw framed. */
+  object-fit: contain;
 }
 
 .camera-loading {
