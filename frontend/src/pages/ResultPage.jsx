@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { mediaUrl, saveCount, uploadForCount } from '../api'
 import { downscaleImage } from '../downscale'
 import MarkerOverlay from '../components/MarkerOverlay'
 import CameraCapture from '../components/CameraCapture'
+import { showToast } from '../toast'
 
 export default function ResultPage() {
   const location = useLocation()
@@ -19,7 +20,6 @@ export default function ResultPage() {
   const [error, setError] = useState(null)
   const [verifying, setVerifying] = useState(false)
   const [verifyCount, setVerifyCount] = useState(null)
-  const skipVerifyDims = useRef(null)
 
   function pushMarkers(next) {
     setHistory((prev) => [...prev.slice(0, historyIndex + 1), next])
@@ -70,6 +70,7 @@ export default function ResultPage() {
     setError(null)
     try {
       await saveCount({ imageId, label, detections: markers })
+      showToast(`Saved — ${markers.length} pills`)
       navigate('/history')
     } catch (err) {
       setError(err.message || 'Save failed')
@@ -102,7 +103,7 @@ export default function ResultPage() {
   const flaggedCount = markers.filter((m) => (m.confidence ?? 1) < 0.75).length
 
   return (
-    <div className="page">
+    <div className="page" style={{ paddingBottom: 0 }}>
       <div className="row" style={{ justifyContent: 'space-between' }}>
         <h2 style={{ marginBottom: 0 }}>Count: {markers.length}</h2>
         <div className="row">
@@ -111,6 +112,22 @@ export default function ResultPage() {
         </div>
       </div>
       <p className="hint">Tap empty space to add a marker. Tap a marker to remove it.</p>
+
+      <div className="legend-row">
+        <span className="legend-item">
+          <span className="legend-dot" style={{ background: 'rgba(170, 59, 255, 0.75)' }} />
+          Confident
+        </span>
+        <span className="legend-item">
+          <span className="legend-dot" style={{ background: 'rgba(245, 158, 11, 0.85)' }} />
+          Borderline
+        </span>
+        <span className="legend-item">
+          <span className="legend-dot" style={{ background: 'rgba(229, 72, 77, 0.85)' }} />
+          Flagged
+        </span>
+      </div>
+
       {flaggedCount > 0 && (
         <p className="badge badge-warn" style={{ alignSelf: 'flex-start' }}>
           {flaggedCount} low-confidence detection{flaggedCount === 1 ? '' : 's'} flagged — worth a second look.
@@ -125,7 +142,7 @@ export default function ResultPage() {
         editable
       />
 
-      <div className="stack" style={{ maxWidth: 360 }}>
+      <div className="stack">
         <input
           className="input"
           type="text"
@@ -142,25 +159,44 @@ export default function ResultPage() {
 
         {error && <p className="error-text">{error}</p>}
 
-        <div className="row">
-          <button className="btn btn-primary" onClick={handleSave} disabled={saving} style={{ flex: 1 }}>
-            {saving ? 'Saving...' : 'Save Count'}
-          </button>
-          <button className="btn" onClick={handleRetake} disabled={saving}>
-            Retake
-          </button>
-        </div>
-
-        <button className="btn" onClick={() => setVerifying((v) => !v)}>
+        <button className="btn icon-label-btn" onClick={() => setVerifying((v) => !v)}>
+          <VerifyIcon />
           {verifying ? 'Cancel verification' : 'Verify with another photo'}
         </button>
       </div>
 
       {verifying && (
-        <div style={{ maxWidth: 360 }}>
-          <CameraCapture onCapture={handleVerifyPhoto} onUnavailable={() => setError('Camera unavailable for verification photo.')} />
-        </div>
+        <CameraCapture onCapture={handleVerifyPhoto} onUnavailable={() => setError('Camera unavailable for verification photo.')} />
       )}
+
+      <div className="sticky-action-bar no-print">
+        <button className="btn btn-primary" onClick={handleSave} disabled={saving} style={{ flex: 1 }}>
+          {saving ? 'Saving...' : 'Save Count'}
+        </button>
+        <button className="btn icon-label-btn" onClick={handleRetake} disabled={saving}>
+          <RetakeIcon />
+          Retake
+        </button>
+      </div>
     </div>
+  )
+}
+
+function RetakeIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M23 4v6h-6" />
+      <path d="M1 20v-6h6" />
+      <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+    </svg>
+  )
+}
+
+function VerifyIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2Z" />
+      <circle cx="12" cy="13" r="4" />
+    </svg>
   )
 }

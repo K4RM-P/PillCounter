@@ -8,6 +8,7 @@ export default function CameraCapture({ onCapture, onUnavailable }) {
   const streamRef = useRef(null)
   const [ready, setReady] = useState(false)
   const [error, setError] = useState(null)
+  const [flash, setFlash] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -54,6 +55,8 @@ export default function CameraCapture({ onCapture, onUnavailable }) {
   function handleShutter() {
     const video = videoRef.current
     if (!video) return
+    setFlash(true)
+    setTimeout(() => setFlash(false), 350)
     const canvas = document.createElement('canvas')
     canvas.width = video.videoWidth
     canvas.height = video.videoHeight
@@ -69,6 +72,7 @@ export default function CameraCapture({ onCapture, onUnavailable }) {
     <div className="camera-frame">
       <video ref={videoRef} playsInline muted className="camera-video" />
       {!ready && <div className="camera-loading">Starting camera...</div>}
+      {flash && <div className="shutter-flash" />}
       <button
         className="shutter-btn"
         onClick={handleShutter}

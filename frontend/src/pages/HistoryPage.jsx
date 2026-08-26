@@ -1,6 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { fetchCounts, mediaUrl } from '../api'
+import { formatRelativeTime } from '../relativeTime'
+
+const DAY_OPTIONS = [
+  { value: 'all', label: 'All' },
+  { value: '1', label: '24h' },
+  { value: '7', label: '7d' },
+  { value: '30', label: '30d' },
+]
 
 export default function HistoryPage() {
   const [counts, setCounts] = useState(null)
@@ -44,7 +52,24 @@ export default function HistoryPage() {
   }, [counts])
 
   if (error) return <div className="page"><p className="error-text">{error}</p></div>
-  if (counts === null) return <div className="page"><p className="hint">Loading...</p></div>
+
+  if (counts === null) {
+    return (
+      <div className="page">
+        <h2>History</h2>
+        <div className="stats-row">
+          <div className="skeleton" style={{ height: 66, flex: 1 }} />
+          <div className="skeleton" style={{ height: 66, flex: 1 }} />
+          <div className="skeleton" style={{ height: 66, flex: 1 }} />
+        </div>
+        <div className="stack">
+          <div className="skeleton" style={{ height: 80 }} />
+          <div className="skeleton" style={{ height: 80 }} />
+          <div className="skeleton" style={{ height: 80 }} />
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="page">
@@ -93,33 +118,61 @@ export default function HistoryPage() {
               onChange={(e) => setMaxCount(e.target.value)}
               style={{ width: 110 }}
             />
-            <select className="select" value={days} onChange={(e) => setDays(e.target.value)}>
-              <option value="all">All time</option>
-              <option value="1">Last 24h</option>
-              <option value="7">Last 7 days</option>
-              <option value="30">Last 30 days</option>
-            </select>
+          </div>
+          <div className="segmented">
+            {DAY_OPTIONS.map((opt) => (
+              <button
+                key={opt.value}
+                type="button"
+                className={days === opt.value ? 'active' : ''}
+                onClick={() => setDays(opt.value)}
+              >
+                {opt.label}
+              </button>
+            ))}
           </div>
         </div>
       )}
 
-      {counts.length === 0 && <p className="hint">No saved counts yet. Go count some pills!</p>}
+      {counts.length === 0 && (
+        <div className="empty-state">
+          <div className="empty-icon">
+            <HistoryEmptyIcon />
+          </div>
+          <div className="empty-title">No counts yet</div>
+          <p className="hint">Your saved pill counts will show up here.</p>
+          <Link to="/" className="btn btn-primary" style={{ marginTop: 12 }}>
+            Count your first pills
+          </Link>
+        </div>
+      )}
       {counts.length > 0 && filtered.length === 0 && <p className="hint">No counts match your filters.</p>}
 
+      {filtered.length > 0 && <p className="section-label">Recent counts</p>}
       <div className="stack">
         {filtered.map((c) => (
-          <Link key={c.id} to={`/history/${c.id}`} className="card card-link">
-            <img src={mediaUrl(c.image_id)} alt="" width={60} height={60} style={{ objectFit: 'cover', borderRadius: 8 }} />
-            <div>
-              <div style={{ fontWeight: 600, color: 'var(--text-h)' }}>{c.count} pills</div>
-              <div>{c.label || 'Untitled'}</div>
-              <div className="hint" style={{ fontSize: '0.85rem' }}>
-                {new Date(c.created_at).toLocaleString()}
+          <Link key={c.id} to={`/history/${c.id}`} className="history-card">
+            <img className="thumb" src={mediaUrl(c.image_id)} alt="" />
+            <div className="meta">
+              <div className="title-row">
+                <span className="label">{c.label || 'Untitled'}</span>
               </div>
+              <div className="hint" style={{ fontSize: 13 }}>{formatRelativeTime(c.created_at)}</div>
             </div>
+            <span className="count-chip">{c.count}</span>
           </Link>
         ))}
       </div>
     </div>
+  )
+}
+
+function HistoryEmptyIcon() {
+  return (
+    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 3v5h5" />
+      <path d="M3.05 13a9 9 0 1 0 .5-4.5L3 8" />
+      <path d="M12 7v5l4 2" />
+    </svg>
   )
 }

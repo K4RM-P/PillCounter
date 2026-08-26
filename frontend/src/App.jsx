@@ -6,6 +6,7 @@ import HistoryPage from './pages/HistoryPage'
 import HistoryDetailPage from './pages/HistoryDetailPage'
 import LoginPage from './pages/LoginPage'
 import RequireAuth from './components/RequireAuth'
+import ToastHost from './components/ToastHost'
 import { clearToken, isAuthenticated } from './auth'
 import { applyTheme, getTheme, toggleTheme } from './theme'
 import { flushQueue, queueLength } from './offlineQueue'
@@ -65,41 +66,45 @@ function App() {
         </div>
       )}
 
-      <Routes>
-        <Route path="/login" element={<LoginPage />} />
-        <Route
-          path="/"
-          element={
-            <RequireAuth>
-              <CapturePage />
-            </RequireAuth>
-          }
-        />
-        <Route
-          path="/result"
-          element={
-            <RequireAuth>
-              <ResultPage />
-            </RequireAuth>
-          }
-        />
-        <Route
-          path="/history"
-          element={
-            <RequireAuth>
-              <HistoryPage />
-            </RequireAuth>
-          }
-        />
-        <Route
-          path="/history/:id"
-          element={
-            <RequireAuth>
-              <HistoryDetailPage />
-            </RequireAuth>
-          }
-        />
-      </Routes>
+      <div className="route-fade" key={location.pathname}>
+        <Routes>
+          <Route path="/login" element={<LoginPage />} />
+          <Route
+            path="/"
+            element={
+              <RequireAuth>
+                <CapturePage />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/result"
+            element={
+              <RequireAuth>
+                <ResultPage />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/history"
+            element={
+              <RequireAuth>
+                <HistoryPage />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/history/:id"
+            element={
+              <RequireAuth>
+                <HistoryDetailPage />
+              </RequireAuth>
+            }
+          />
+        </Routes>
+      </div>
+
+      <ToastHost />
 
       {showChrome && (
         <nav className="bottom-nav no-print">

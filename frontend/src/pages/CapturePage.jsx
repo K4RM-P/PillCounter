@@ -4,11 +4,11 @@ import { uploadForCount } from '../api'
 import { downscaleImage } from '../downscale'
 import { enqueuePhoto, isNetworkError } from '../offlineQueue'
 import CameraCapture from '../components/CameraCapture'
+import { showToast } from '../toast'
 
 export default function CapturePage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
-  const [queued, setQueued] = useState(false)
   const [cameraUnavailable, setCameraUnavailable] = useState(false)
   const navigate = useNavigate()
 
@@ -16,7 +16,6 @@ export default function CapturePage() {
     if (!file) return
     setLoading(true)
     setError(null)
-    setQueued(false)
     try {
       const blob = await downscaleImage(file)
       let result
@@ -25,7 +24,7 @@ export default function CapturePage() {
       } catch (err) {
         if (isNetworkError(err)) {
           await enqueuePhoto(blob, '')
-          setQueued(true)
+          showToast('Offline — photo saved, will upload automatically', { variant: 'warn' })
           return
         }
         throw err
@@ -66,11 +65,6 @@ export default function CapturePage() {
       </div>
 
       {error && <p className="error-text">{error}</p>}
-      {queued && (
-        <p className="badge badge-warn" style={{ alignSelf: 'flex-start' }}>
-          Offline — photo saved on this device, will upload automatically when back online.
-        </p>
-      )}
 
       {loading && (
         <div className="camera-frame" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
