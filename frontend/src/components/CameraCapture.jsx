@@ -19,7 +19,12 @@ export default function CameraCapture({ onCapture, onUnavailable }) {
       }
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: 'environment', width: { ideal: 1600 }, height: { ideal: 1600 } },
+          // Request the highest resolution the device's camera offers — the
+          // pill counter's accuracy depends heavily on native resolution for
+          // dense/overlapping pills, so we don't want to pre-limit this the
+          // way the old 1600px cap did. The browser clamps to whatever the
+          // hardware actually supports.
+          video: { facingMode: 'environment', width: { ideal: 4096 }, height: { ideal: 4096 } },
           audio: false,
         })
         if (cancelled) {

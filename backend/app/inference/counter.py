@@ -20,6 +20,10 @@ import numpy as np
 from app.config import settings
 from app.inference.model import get_model, resolve_device
 
+# Reference max-dimension (pixels) that TILE_SIZE/TILE_OVERLAP were tuned
+# against — see _tiled_detections.
+TILE_SIZE_REFERENCE_DIM = 4032
+
 
 def _enhance_contrast(image: np.ndarray) -> np.ndarray:
     """CLAHE (adaptive histogram equalization) on the lightness channel —
@@ -94,7 +98,14 @@ def _tile_starts(dim: int, tile: int, stride: int) -> list[int]:
 
 def _tiled_detections(model, image: np.ndarray, device: str) -> list[dict]:
     height, width = image.shape[:2]
-    tile = settings.TILE_SIZE
+    # Scale tile size proportionally to the actual photo's resolution — a
+    # fixed pixel tile size makes pills occupy a smaller fraction of each
+    # tile (and thus less model input resolution) on a lower-res photo than
+    # on the ~4032px reference photos TILE_SIZE was tuned against, which
+    # measurably hurts recall on dense/overlapping pills at common
+    # non-reference resolutions (e.g. 3000-3200px). Scaling keeps that ratio
+    # consistent regardless of the source photo's actual resolution.
+    tile = max(400, round(settings.TILE_SIZE * max(height, width) / TILE_SIZE_REFERENCE_DIM))
     stride = max(1, int(tile * (1 - settings.TILE_OVERLAP)))
 
     detections = []

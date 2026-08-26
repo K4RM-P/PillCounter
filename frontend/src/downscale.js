@@ -1,4 +1,10 @@
-const MAX_DIMENSION = 1600
+// Bounds only pathologically large source photos (e.g. desktop screenshots,
+// DSLR exports) — phone camera photos (~3000-4100px) pass through close to
+// native resolution. The pill counter's tiled inference needs that detail:
+// dropping to 1600px measurably loses small/overlapping pills in dense trays
+// (verified: a 13-pill tray photo counted 13/13 at native res vs 11/13 once
+// downscaled to 1600px).
+const MAX_DIMENSION = 4096
 
 function isHeic(file) {
   const type = (file.type || '').toLowerCase()
@@ -48,7 +54,7 @@ function downscaleToJpeg(file) {
           else reject(new Error('Failed to downscale image'))
         },
         'image/jpeg',
-        0.85
+        0.92
       )
     }
 
