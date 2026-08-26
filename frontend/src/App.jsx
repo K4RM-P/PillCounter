@@ -47,22 +47,27 @@ function App() {
     setDark(toggleTheme() === 'dark')
   }
 
+  const showChrome = isAuthenticated() && location.pathname !== '/login'
+
   return (
     <>
-      <nav className="navbar">
-        <Link to="/" className="brand">PillCount</Link>
-        <Link to="/" className={`navlink${location.pathname === '/' ? ' active' : ''}`}>Count Pills</Link>
-        <Link to="/history" className={`navlink${location.pathname.startsWith('/history') ? ' active' : ''}`}>History</Link>
-        {pending > 0 && <span className="badge badge-warn">{pending} pending upload{pending === 1 ? '' : 's'}</span>}
-        <button className="btn btn-icon" onClick={handleToggleTheme} title="Toggle dark mode" aria-label="Toggle dark mode">
-          {dark ? '☀️' : '🌙'}
-        </button>
-        {isAuthenticated() && (
-          <button className="btn" onClick={handleLogout}>
-            Log out
-          </button>
-        )}
-      </nav>
+      {showChrome && (
+        <div className="app-header no-print">
+          <div>
+            <div className="greeting-eyebrow">Welcome to</div>
+            <div className="greeting-title">PillCount</div>
+          </div>
+          <div className="row" style={{ gap: 8 }}>
+            {pending > 0 && <span className="badge badge-warn">{pending} pending</span>}
+            <button className="btn btn-icon" onClick={handleToggleTheme} title="Toggle dark mode" aria-label="Toggle dark mode">
+              {dark ? '☀️' : '🌙'}
+            </button>
+            <button className="avatar-btn" onClick={handleLogout} title="Log out" aria-label="Log out">
+              ⏻
+            </button>
+          </div>
+        </div>
+      )}
 
       <Routes>
         <Route path="/login" element={<LoginPage />} />
@@ -99,6 +104,20 @@ function App() {
           }
         />
       </Routes>
+
+      {showChrome && (
+        <nav className="bottom-nav no-print">
+          <Link to="/" className={`navlink${location.pathname === '/' ? ' active' : ''}`}>
+            <span className="icon">📷</span>
+            Count
+          </Link>
+          <Link to="/history" className={`navlink${location.pathname.startsWith('/history') ? ' active' : ''}`} style={{ position: 'relative' }}>
+            <span className="icon">🗂️</span>
+            History
+            {pending > 0 && <span className="badge-dot" />}
+          </Link>
+        </nav>
+      )}
 
       <footer className="page no-print" style={{ paddingTop: 0, borderTop: '1px solid var(--border)' }}>
         <Disclaimer />
