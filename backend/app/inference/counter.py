@@ -48,7 +48,8 @@ def count_pills(image: np.ndarray) -> list[dict]:
         raw_detections = _boxes_from_result(result)
 
     deduped = _dedup(raw_detections)
-    size_filtered = _filter_size_shape_outliers(deduped)
+    tray_filtered = _filter_outside_tray(image, deduped)
+    size_filtered = _filter_size_shape_outliers(tray_filtered)
     color_filtered = _filter_color_outliers(image, size_filtered)
     return [{"x": d["x"], "y": d["y"], "confidence": d["confidence"]} for d in color_filtered]
 
@@ -99,9 +100,17 @@ def _tiled_detections(model, image: np.ndarray, device: str) -> list[dict]:
     detections = []
     for y in _tile_starts(height, tile, stride):
         for x in _tile_starts(width, tile, stride):
-            crop = image[y : min(y + tile, height), x : min(x + tile, width)]
+            y2, x2 = min(y + tile, height), min(x + tile, width)
+            crop = image[y:y2, x:x2]
             if crop.size == 0:
                 continue
+            # Ragged edge tiles (image not an exact multiple of tile size) are
+            # smaller than `tile x tile`, which changes their effective scale
+            # once the model letterboxes them to imgsz — mirror-pad back up to
+            # full tile size so every tile is detected at the same scale.
+            pad_h, pad_w = tile - crop.shape[0], tile - crop.shape[1]
+            if pad_h > 0 or pad_w > 0:
+                crop = cv2.copyMakeBorder(crop, 0, pad_h, 0, pad_w, cv2.BORDER_REFLECT_101)
             result = _predict(model, crop, device, imgsz=settings.INFERENCE_IMGSZ)
             detections.extend(_boxes_from_result(result, offset_x=x, offset_y=y))
     return detections
@@ -121,7 +130,95 @@ def _dedup(detections: list[dict]) -> list[dict]:
     ordered = sorted(detections, key=lambda d: d["confidence"], reverse=True)
     kept: list[dict] = []
     for d in ordered:
-        if any(((d["x"] - k["x"]) ** 2 + (d["y"] - k["y"]) ** 2) ** 0.5 < threshold for k in kept):
+        match = next(
+            (k for k in kept if ((d["x"] - k["_anchor_x"]) ** 2 + (d["y"] - k["_anchor_y"]) ** 2) ** 0.5 < threshold),
+            None,
+        )
+        if match is None:
+            kept.append(dict(d, _n=1, _anchor_x=d["x"], _anchor_y=d["y"]))
+            continue
+        # Confidence-weighted running average of the merged boxes' centers/size
+        # (a lightweight weighted-box-fusion) instead of just keeping the
+        # highest-confidence box's raw center — the same pill seen from two
+        # tiles rarely has its true center exactly on either single detection.
+        # Matching itself always compares against the original highest-
+        # confidence anchor position (not the drifting blended average) so
+        # merges can't chain into unrelated nearby pills.
+        n = match["_n"]
+        total_w = match["confidence"] * n + d["confidence"]
+        for key in ("x", "y", "_w", "_h"):
+            match[key] = (match[key] * match["confidence"] * n + d[key] * d["confidence"]) / total_w
+        match["confidence"] = max(match["confidence"], d["confidence"])
+        match["_n"] = n + 1
+    for k in kept:
+        k.pop("_anchor_x", None)
+        k.pop("_anchor_y", None)
+    return kept
+
+
+def _tray_mask(image: np.ndarray) -> np.ndarray | None:
+    """Builds a binary mask of the counting surface (tray, mat, sheet of
+    paper) that detections must fall on. Pills are essentially never
+    photographed touching the frame edge, so a thin strip around the image
+    border is a reliable sample of "background" regardless of tray color —
+    the mask is then just the largest region that contrasts with that
+    background. Returns None (meaning: don't filter) when no clear
+    foreground region is found, e.g. a tray that fills the whole frame.
+    """
+    height, width = image.shape[:2]
+    lab = cv2.cvtColor(image, cv2.COLOR_BGR2LAB).astype(np.float32)
+
+    border = np.concatenate(
+        [
+            lab[:20, :].reshape(-1, 3),
+            lab[-20:, :].reshape(-1, 3),
+            lab[:, :20].reshape(-1, 3),
+            lab[:, -20:].reshape(-1, 3),
+        ]
+    )
+    bg_mean = border.mean(axis=0)
+    bg_std = border.std(axis=0) + 1e-6
+
+    dist = np.sqrt(np.sum(((lab - bg_mean) / bg_std) ** 2, axis=2))
+    foreground = (dist > 3.0).astype(np.uint8) * 255
+
+    kernel = np.ones((15, 15), np.uint8)
+    foreground = cv2.morphologyEx(foreground, cv2.MORPH_CLOSE, kernel)
+    foreground = cv2.morphologyEx(foreground, cv2.MORPH_OPEN, kernel)
+
+    contours, _ = cv2.findContours(foreground, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    if not contours:
+        return None
+    largest = max(contours, key=cv2.contourArea)
+    if cv2.contourArea(largest) < 0.05 * height * width:
+        return None
+
+    mask = np.zeros((height, width), np.uint8)
+    cv2.drawContours(mask, [largest], -1, 255, thickness=cv2.FILLED)
+    # Dilate so a pill whose center sits right at a soft/blurry tray edge
+    # isn't rejected for being a few pixels outside the strict contour.
+    return cv2.dilate(mask, np.ones((25, 25), np.uint8))
+
+
+def _filter_outside_tray(image: np.ndarray, detections: list[dict]) -> list[dict]:
+    """Drops detections whose center falls outside the counting surface —
+    catches background clutter (table edges, nearby objects) that happens to
+    look pill-sized/pill-colored/pill-shaped enough to pass the other
+    filters, since none of those filters know anything about *where* the
+    pills should be.
+    """
+    if len(detections) < 3:
+        return detections
+
+    mask = _tray_mask(image)
+    if mask is None:
+        return detections
+
+    height, width = mask.shape
+    kept = []
+    for d in detections:
+        cx, cy = int(d["x"]), int(d["y"])
+        if 0 <= cx < width and 0 <= cy < height and mask[cy, cx] == 0:
             continue
         kept.append(d)
     return kept
@@ -206,7 +303,12 @@ def _filter_color_outliers(image: np.ndarray, detections: list[dict]) -> list[di
 
     colors_arr = np.array(colors)
     median_color = np.median(colors_arr, axis=0)
-    std = colors_arr.std(axis=0) + 1e-6
+    # Median absolute deviation, not stddev: a couple of true outliers (tray
+    # hardware, glare) inflate stddev enough to hide themselves as "within a
+    # few sigma" of their own contamination. MAD (scaled by 1.4826 to match
+    # stddev under a normal distribution) stays robust with a handful of
+    # outliers in an otherwise tightly-clustered population of pill colors.
+    mad = np.median(np.abs(colors_arr - median_color), axis=0) * 1.4826 + 1e-6
 
     kept = []
     for d in detections:
@@ -214,8 +316,13 @@ def _filter_color_outliers(image: np.ndarray, detections: list[dict]) -> list[di
         if color is None:
             kept.append(d)
             continue
-        z_score = float(np.sqrt(np.sum(((color - median_color) / std) ** 2)))
-        if z_score > 3.0:
+        z_score = float(np.sqrt(np.sum(((color - median_color) / mad) ** 2)))
+        # Threshold loosened from 3.0 now that _filter_outside_tray already
+        # removes most background clutter before this runs — this filter's
+        # remaining job is just tray hardware, so it can afford to be more
+        # forgiving of legitimate pills darkened by shadow/overlap, which
+        # otherwise got misclassified as color outliers themselves.
+        if z_score > 5.0:
             continue
         kept.append(d)
     return kept

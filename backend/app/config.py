@@ -10,9 +10,10 @@ class Settings:
     CONFIDENCE_THRESHOLD: float = float(os.getenv("CONFIDENCE_THRESHOLD", "0.6"))
 
     # Path or name of the YOLOv8 weights file loaded by app.inference.model.
-    # Phase 2: pretrained generic COCO weights (auto-downloaded by ultralytics).
-    # Phase 3: point this at a fine-tuned weights file (e.g. backend/ml/weights/pill_yolov8.pt).
-    MODEL_WEIGHTS_PATH: str = os.getenv("MODEL_WEIGHTS_PATH", "yolov8n.pt")
+    # Fine-tuned on pill trays (backend/ml/train.py); pill_v2.pt empirically
+    # outperforms pill_v1.pt and the old generic-COCO default on real tray
+    # photos (yolov8n.pt was never trained on pills at all).
+    MODEL_WEIGHTS_PATH: str = os.getenv("MODEL_WEIGHTS_PATH", "ml/weights/pill_v2.pt")
 
     # Inference tuning — separate from training imgsz so it can be raised without retraining.
     # Higher imgsz helps separate small/touching pills at inference time.
