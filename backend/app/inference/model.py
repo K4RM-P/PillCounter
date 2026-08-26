@@ -3,6 +3,8 @@
 counter.py or any calling code.
 """
 
+from __future__ import annotations
+
 from functools import lru_cache
 
 import torch
@@ -21,9 +23,12 @@ def resolve_device() -> str:
     return "cpu"
 
 
-@lru_cache(maxsize=1)
-def get_model() -> YOLO:
-    model = YOLO(settings.MODEL_WEIGHTS_PATH)
+@lru_cache(maxsize=4)
+def get_model(weights_path: str | None = None) -> YOLO:
+    """Cached per weights path — lets multiple model versions (e.g. for A/B
+    testing candidate weights against the production default) be loaded and
+    reused within the same process instead of reloading from disk per request."""
+    model = YOLO(weights_path or settings.MODEL_WEIGHTS_PATH)
     # Warm up on the actual inference device so the first real request isn't
     # slowed by lazy weight transfer/kernel compilation.
     model.to(resolve_device())

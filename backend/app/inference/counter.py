@@ -39,8 +39,8 @@ def _enhance_contrast(image: np.ndarray) -> np.ndarray:
     return cv2.cvtColor(enhanced_lab, cv2.COLOR_LAB2BGR)
 
 
-def count_pills(image: np.ndarray) -> list[dict]:
-    model = get_model()
+def count_pills(image: np.ndarray, weights_path: str | None = None) -> list[dict]:
+    model = get_model(weights_path)
     device = resolve_device()
     height, width = image.shape[:2]
     detection_input = _enhance_contrast(image) if settings.CONTRAST_ENHANCE else image

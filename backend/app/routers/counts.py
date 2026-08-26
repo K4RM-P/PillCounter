@@ -1,6 +1,8 @@
+from typing import Optional
+
 import cv2
 import numpy as np
-from fastapi import APIRouter, Depends, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, Form, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
 from app.auth import require_auth
@@ -15,15 +17,21 @@ router = APIRouter(prefix="/api", dependencies=[Depends(require_auth)])
 
 
 @router.post("/count", response_model=CountResponse)
-async def count_image(file: UploadFile):
+async def count_image(file: UploadFile, model_version: Optional[str] = Form(default=None)):
     data = await file.read()
     np_data = np.frombuffer(data, np.uint8)
     image = cv2.imdecode(np_data, cv2.IMREAD_COLOR)
     if image is None:
         raise HTTPException(status_code=400, detail="Could not decode image")
 
+    weights_path = None
+    if model_version is not None:
+        weights_path = settings.MODEL_VERSIONS.get(model_version)
+        if weights_path is None:
+            raise HTTPException(status_code=400, detail=f"Unknown model_version '{model_version}'")
+
     height, width = image.shape[:2]
-    detections = count_pills(image)
+    detections = count_pills(image, weights_path=weights_path)
     detections = [d for d in detections if d["confidence"] >= settings.CONFIDENCE_THRESHOLD]
 
     image_id = save_image(data)

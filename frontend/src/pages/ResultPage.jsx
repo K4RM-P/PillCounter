@@ -9,7 +9,7 @@ import { showToast } from '../toast'
 export default function ResultPage() {
   const location = useLocation()
   const navigate = useNavigate()
-  const { imageId, markers: initialMarkers } = location.state || {}
+  const { imageId, markers: initialMarkers, modelVersion } = location.state || {}
 
   const [history, setHistory] = useState([initialMarkers || []])
   const [historyIndex, setHistoryIndex] = useState(0)
@@ -105,7 +105,14 @@ export default function ResultPage() {
   return (
     <div className="page" style={{ paddingBottom: 0 }}>
       <div className="row" style={{ justifyContent: 'space-between' }}>
-        <h2 style={{ marginBottom: 0 }}>Count: {markers.length}</h2>
+        <h2 style={{ marginBottom: 0 }}>
+          Count: {markers.length}
+          {modelVersion && (
+            <span className="badge" style={{ marginLeft: 8, verticalAlign: 'middle' }}>
+              Model {modelVersion}
+            </span>
+          )}
+        </h2>
         <div className="row">
           <button className="btn btn-icon" onClick={undo} disabled={historyIndex === 0} title="Undo (Cmd/Ctrl+Z)">↺</button>
           <button className="btn btn-icon" onClick={redo} disabled={historyIndex === history.length - 1} title="Redo (Cmd/Ctrl+Shift+Z)">↻</button>

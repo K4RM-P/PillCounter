@@ -66,9 +66,10 @@ export async function login(username, password) {
   return res.json()
 }
 
-export async function uploadForCount(blob) {
+export async function uploadForCount(blob, modelVersion) {
   const formData = new FormData()
   formData.append('file', blob, 'capture.jpg')
+  if (modelVersion) formData.append('model_version', modelVersion)
   const res = await apiFetch('/api/count', { method: 'POST', body: formData })
   if (!res.ok) throw new Error('Count request failed')
   return res.json()

@@ -40,6 +40,15 @@ def main():
     parser.add_argument("--copy-paste", dest="copy_paste", type=float, default=0.1, help="Copy-paste augmentation — synthesizes more overlapping-object training examples")
     parser.add_argument("--close-mosaic", dest="close_mosaic", type=int, default=15, help="Disable mosaic augmentation for the final N epochs so the model sees undistorted layouts before finishing")
     parser.add_argument("--patience", type=int, default=30, help="Early-stop patience (epochs without val improvement)")
+    parser.add_argument("--workers", type=int, default=8, help="Dataloader worker processes")
+    parser.add_argument(
+        "--cache",
+        default="disk",
+        choices=["ram", "disk", "none"],
+        help="Cache decoded images so every epoch doesn't re-read+re-decode JPEGs from disk — "
+        "on MPS especially, data loading is otherwise the actual bottleneck, not compute "
+        "('none' disables, matching Ultralytics' old default).",
+    )
     args = parser.parse_args()
 
     device = args.device or default_device()
@@ -60,6 +69,8 @@ def main():
         copy_paste=args.copy_paste,
         close_mosaic=args.close_mosaic,
         patience=args.patience,
+        workers=args.workers,
+        cache=False if args.cache == "none" else args.cache,
     )
 
 

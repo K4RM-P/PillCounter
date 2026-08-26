@@ -15,6 +15,14 @@ class Settings:
     # photos (yolov8n.pt was never trained on pills at all).
     MODEL_WEIGHTS_PATH: str = os.getenv("MODEL_WEIGHTS_PATH", "ml/weights/pill_v2.pt")
 
+    # Named model versions selectable per-request (see routers/counts.py) for
+    # A/B comparing a candidate fine-tune against the production default
+    # without redeploying. Keys are what the frontend passes as `model_version`.
+    MODEL_VERSIONS: dict[str, str] = {
+        "v2": "ml/weights/pill_v2.pt",
+        "v3": "ml/weights/pill_v3.pt",
+    }
+
     # Inference tuning — separate from training imgsz so it can be raised without retraining.
     # Higher imgsz helps separate small/touching pills at inference time.
     INFERENCE_IMGSZ: int = int(os.getenv("INFERENCE_IMGSZ", "1280"))

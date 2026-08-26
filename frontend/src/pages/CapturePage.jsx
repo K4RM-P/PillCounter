@@ -6,11 +6,23 @@ import { enqueuePhoto, isNetworkError } from '../offlineQueue'
 import CameraCapture from '../components/CameraCapture'
 import { showToast } from '../toast'
 
+// Remembered across visits so an A/B comparison session doesn't reset the
+// toggle on every photo.
+const MODEL_VERSION_KEY = 'pillcount_model_version'
+
 export default function CapturePage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [cameraUnavailable, setCameraUnavailable] = useState(false)
+  const [modelVersion, setModelVersion] = useState(
+    () => localStorage.getItem(MODEL_VERSION_KEY) || 'v2',
+  )
   const navigate = useNavigate()
+
+  function selectModelVersion(version) {
+    setModelVersion(version)
+    localStorage.setItem(MODEL_VERSION_KEY, version)
+  }
 
   async function handleFile(file) {
     if (!file) return
@@ -20,7 +32,7 @@ export default function CapturePage() {
       const blob = await downscaleImage(file)
       let result
       try {
-        result = await uploadForCount(blob)
+        result = await uploadForCount(blob, modelVersion)
       } catch (err) {
         if (isNetworkError(err)) {
           await enqueuePhoto(blob, '')
@@ -43,7 +55,7 @@ export default function CapturePage() {
       }))
 
       navigate('/result', {
-        state: { imageId: result.image_id, markers },
+        state: { imageId: result.image_id, markers, modelVersion },
       })
     } catch (err) {
       setError(err.message || 'Something went wrong')
@@ -62,6 +74,26 @@ export default function CapturePage() {
       <div>
         <h2>Count Pills</h2>
         <p className="hint">Spread pills out on a flat, contrasting surface so they don't overlap.</p>
+      </div>
+
+      <div className="row" style={{ gap: 6, alignSelf: 'flex-start' }} role="radiogroup" aria-label="Model version">
+        {['v2', 'v3'].map((version) => (
+          <button
+            key={version}
+            type="button"
+            role="radio"
+            aria-checked={modelVersion === version}
+            className="btn btn-icon"
+            onClick={() => selectModelVersion(version)}
+            style={
+              modelVersion === version
+                ? { background: 'var(--accent)', borderColor: 'var(--accent)', color: 'var(--accent-contrast)' }
+                : undefined
+            }
+          >
+            Model {version}
+          </button>
+        ))}
       </div>
 
       {error && <p className="error-text">{error}</p>}
