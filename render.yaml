@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: pillcount-api
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: starter
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true
+      - key: AUTH_USERNAME
+        value: pharmacy
+      - key: AUTH_PASSWORD
+        sync: false
