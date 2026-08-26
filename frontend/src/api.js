@@ -15,8 +15,27 @@ function authHeaders() {
   return token ? { Authorization: `Bearer ${token}` } : {}
 }
 
+// Requests otherwise hang indefinitely (well past any spinner feeling
+// "stuck") if the host is unreachable — a phone on a different network
+// than the backend, a firewalled IP, etc. — since the browser's own
+// connection timeout is 60-120s. Cut that down to something a person
+// will actually wait out, with an error message that says what happened.
+const REQUEST_TIMEOUT_MS = 15000
+
+async function fetchWithTimeout(url, options = {}) {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+  try {
+    return await fetch(url, { ...options, signal: controller.signal })
+  } catch {
+    throw new Error(`Couldn't reach the server at ${API_BASE_URL} — check you're on the same network.`)
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
 async function apiFetch(path, options = {}) {
-  const res = await fetch(`${API_BASE_URL}${path}`, {
+  const res = await fetchWithTimeout(`${API_BASE_URL}${path}`, {
     ...options,
     headers: { ...authHeaders(), ...(options.headers || {}) },
   })
@@ -29,12 +48,12 @@ async function apiFetch(path, options = {}) {
 }
 
 export async function checkHealth() {
-  const res = await fetch(`${API_BASE_URL}/health`)
+  const res = await fetchWithTimeout(`${API_BASE_URL}/health`)
   return res.json()
 }
 
 export async function login(username, password) {
-  const res = await fetch(`${API_BASE_URL}/api/login`, {
+  const res = await fetchWithTimeout(`${API_BASE_URL}/api/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ username, password }),
