@@ -1,0 +1,23 @@
+name: Keep backend warm
+
+# Render's free tier spins the service down after ~15 min of inactivity,
+# causing a ~30-50s cold start on the next real request. Pinging the health
+# endpoint often enough keeps it warm. Scheduled every 5 min (not 10) since
+# GitHub Actions cron runs aren't guaranteed to fire exactly on time — this
+# leaves margin before Render's 15 min idle cutoff.
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping backend health endpoint
+        run: |
+          if [ -z "${{ vars.BACKEND_URL }}" ]; then
+            echo "Set the BACKEND_URL repository variable (Settings -> Secrets and variables -> Actions -> Variables) to your Render backend URL, e.g. https://pillcount-api.onrender.com"
+            exit 1
+          fi
+          curl -sf -m 20 "${{ vars.BACKEND_URL }}/health"
