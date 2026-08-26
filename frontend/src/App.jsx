@@ -7,6 +7,7 @@ import HistoryDetailPage from './pages/HistoryDetailPage'
 import LoginPage from './pages/LoginPage'
 import RequireAuth from './components/RequireAuth'
 import ToastHost from './components/ToastHost'
+import NetworkBanner from './components/NetworkBanner'
 import { clearToken, isAuthenticated } from './auth'
 import { applyTheme, getTheme, toggleTheme } from './theme'
 import { flushQueue, queueLength } from './offlineQueue'
@@ -65,6 +66,8 @@ function App() {
           </div>
         </div>
       )}
+
+      {showChrome && <NetworkBanner />}
 
       <div className="route-fade" key={location.pathname}>
         <Routes>

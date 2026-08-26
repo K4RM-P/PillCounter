@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { mediaUrl, saveCount, uploadForCount } from '../api'
+import { fetchCounts, mediaUrl, saveCount, uploadForCount } from '../api'
 import { downscaleImage } from '../downscale'
 import MarkerOverlay from '../components/MarkerOverlay'
 import CameraCapture from '../components/CameraCapture'
 import { showToast } from '../toast'
+import { vibrate } from '../haptics'
 
 export default function ResultPage() {
   const location = useLocation()
@@ -16,10 +17,21 @@ export default function ResultPage() {
   const markers = history[historyIndex]
 
   const [label, setLabel] = useState('')
+  const [priorLabels, setPriorLabels] = useState([])
   const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
   const [error, setError] = useState(null)
   const [verifying, setVerifying] = useState(false)
   const [verifyCount, setVerifyCount] = useState(null)
+
+  useEffect(() => {
+    fetchCounts()
+      .then((counts) => {
+        const labels = [...new Set(counts.map((c) => c.label).filter(Boolean))]
+        setPriorLabels(labels)
+      })
+      .catch(() => {})
+  }, [])
 
   function pushMarkers(next) {
     setHistory((prev) => [...prev.slice(0, historyIndex + 1), next])
@@ -70,16 +82,18 @@ export default function ResultPage() {
     setError(null)
     try {
       await saveCount({ imageId, label, detections: markers })
+      vibrate([10, 40, 10])
       showToast(`Saved — ${markers.length} pills`)
-      navigate('/history')
+      setSaved(true)
+      setTimeout(() => navigate('/history'), 550)
     } catch (err) {
       setError(err.message || 'Save failed')
-    } finally {
       setSaving(false)
     }
   }
 
   function handleRetake() {
+    if (markers.length > 0 && !window.confirm('Discard this count and start over?')) return
     navigate('/')
   }
 
@@ -118,7 +132,7 @@ export default function ResultPage() {
           <button className="btn btn-icon" onClick={redo} disabled={historyIndex === history.length - 1} title="Redo (Cmd/Ctrl+Shift+Z)">↻</button>
         </div>
       </div>
-      <p className="hint">Tap empty space to add a marker. Tap a marker to remove it.</p>
+      <p className="hint">Tap empty space to add a marker, tap a marker to remove it, double-tap the photo to zoom in.</p>
 
       <div className="legend-row">
         <span className="legend-item">
@@ -153,10 +167,16 @@ export default function ResultPage() {
         <input
           className="input"
           type="text"
+          list="prior-labels"
           placeholder="Label (optional, e.g. drug name)"
           value={label}
           onChange={(e) => setLabel(e.target.value)}
         />
+        <datalist id="prior-labels">
+          {priorLabels.map((l) => (
+            <option key={l} value={l} />
+          ))}
+        </datalist>
 
         {verifyCount !== null && (
           <p className={disagreement > 0.1 ? 'badge badge-warn' : 'badge'} style={{ alignSelf: 'flex-start' }}>
@@ -178,14 +198,30 @@ export default function ResultPage() {
 
       <div className="sticky-action-bar no-print">
         <button className="btn btn-primary" onClick={handleSave} disabled={saving} style={{ flex: 1 }}>
-          {saving ? 'Saving...' : 'Save Count'}
+          {saved ? <CheckIcon /> : saving ? 'Saving...' : 'Save Count'}
         </button>
         <button className="btn icon-label-btn" onClick={handleRetake} disabled={saving}>
           <RetakeIcon />
           Retake
         </button>
       </div>
+
+      {saved && (
+        <div className="save-success-overlay no-print">
+          <div className="save-success-badge">
+            <CheckIcon size={28} />
+          </div>
+        </div>
+      )}
     </div>
+  )
+}
+
+function CheckIcon({ size = 16 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="20 6 9 17 4 12" />
+    </svg>
   )
 }
 

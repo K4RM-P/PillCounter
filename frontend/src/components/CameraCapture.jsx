@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { vibrate } from '../haptics'
 
 // Live in-browser camera preview with a shutter button. Falls back to the
 // caller rendering a plain file input when getUserMedia isn't available or
@@ -56,6 +57,7 @@ export default function CameraCapture({ onCapture, onUnavailable }) {
     const video = videoRef.current
     if (!video) return
     setFlash(true)
+    vibrate(15)
     setTimeout(() => setFlash(false), 350)
     const canvas = document.createElement('canvas')
     canvas.width = video.videoWidth

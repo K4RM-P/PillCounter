@@ -14,3 +14,12 @@ services:
         value: pharmacy
       - key: AUTH_PASSWORD
         sync: false
+      # Render's free plan is a slow, shared, memory-limited CPU — full
+      # accuracy settings (TTA + tiling at 1280px) can take long enough on a
+      # ~4000px phone photo to trip the platform's request timeout. Trading
+      # some accuracy on dense/overlapping trays for requests that reliably
+      # complete. Remove these overrides if/when this moves to a paid plan.
+      - key: TTA_AUGMENT
+        value: "false"
+      - key: INFERENCE_IMGSZ
+        value: "960"

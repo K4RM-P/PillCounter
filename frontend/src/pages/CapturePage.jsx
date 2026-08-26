@@ -10,8 +10,16 @@ import { showToast } from '../toast'
 // toggle on every photo.
 const MODEL_VERSION_KEY = 'pillcount_model_version'
 
+const PROCESSING_STAGES = [
+  { afterMs: 0, text: 'Preparing photo...' },
+  { afterMs: 1500, text: 'Uploading photo...' },
+  { afterMs: 6000, text: 'Counting pills...' },
+  { afterMs: 20000, text: 'Still working — larger or denser photos take longer...' },
+]
+
 export default function CapturePage() {
   const [loading, setLoading] = useState(false)
+  const [stage, setStage] = useState(PROCESSING_STAGES[0].text)
   const [error, setError] = useState(null)
   const [cameraUnavailable, setCameraUnavailable] = useState(false)
   const [modelVersion, setModelVersion] = useState(
@@ -28,8 +36,11 @@ export default function CapturePage() {
     if (!file) return
     setLoading(true)
     setError(null)
+    setStage(PROCESSING_STAGES[0].text)
+    const timers = PROCESSING_STAGES.slice(1).map((s) => setTimeout(() => setStage(s.text), s.afterMs))
     try {
       const blob = await downscaleImage(file)
+      setStage(PROCESSING_STAGES[1].text)
       let result
       try {
         result = await uploadForCount(blob, modelVersion)
@@ -60,6 +71,7 @@ export default function CapturePage() {
     } catch (err) {
       setError(err.message || 'Something went wrong')
     } finally {
+      timers.forEach(clearTimeout)
       setLoading(false)
     }
   }
@@ -100,7 +112,10 @@ export default function CapturePage() {
 
       {loading && (
         <div className="camera-frame" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <p style={{ color: 'rgba(255,255,255,0.8)' }}>Processing photo...</p>
+          <div className="processing-indicator">
+            <span className="spinner" />
+            <p style={{ color: 'rgba(255,255,255,0.85)' }}>{stage}</p>
+          </div>
         </div>
       )}
 

@@ -17,11 +17,24 @@ export default function HistoryPage() {
   const [minCount, setMinCount] = useState('')
   const [maxCount, setMaxCount] = useState('')
   const [days, setDays] = useState('all')
+  const [lastFetched, setLastFetched] = useState(null)
+  const [refreshing, setRefreshing] = useState(false)
+
+  function load({ silent } = {}) {
+    if (silent) setRefreshing(true)
+    return fetchCounts()
+      .then((data) => {
+        setCounts(data)
+        setLastFetched(Date.now())
+        setError(null)
+      })
+      .catch((err) => setError(err.message || 'Failed to load history'))
+      .finally(() => setRefreshing(false))
+  }
 
   useEffect(() => {
-    fetchCounts()
-      .then(setCounts)
-      .catch((err) => setError(err.message || 'Failed to load history'))
+    load()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const filtered = useMemo(() => {
@@ -73,7 +86,21 @@ export default function HistoryPage() {
 
   return (
     <div className="page">
-      <h2>History</h2>
+      <div className="row" style={{ justifyContent: 'space-between' }}>
+        <div>
+          <h2 style={{ marginBottom: 0 }}>History</h2>
+          {lastFetched && <p className="hint" style={{ fontSize: 12 }}>Updated {formatRelativeTime(new Date(lastFetched).toISOString())}</p>}
+        </div>
+        <button
+          className="btn btn-icon"
+          onClick={() => load({ silent: true })}
+          disabled={refreshing}
+          aria-label="Refresh"
+          title="Refresh"
+        >
+          <RefreshIcon spinning={refreshing} />
+        </button>
+      </div>
 
       {stats && (
         <div className="stats-row">
@@ -173,6 +200,26 @@ function HistoryEmptyIcon() {
       <path d="M3 3v5h5" />
       <path d="M3.05 13a9 9 0 1 0 .5-4.5L3 8" />
       <path d="M12 7v5l4 2" />
+    </svg>
+  )
+}
+
+function RefreshIcon({ spinning }) {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      style={{ animation: spinning ? 'spin 0.7s linear infinite' : 'none' }}
+    >
+      <path d="M23 4v6h-6" />
+      <path d="M1 20v-6h6" />
+      <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
     </svg>
   )
 }

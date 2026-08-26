@@ -23,10 +23,13 @@ function authHeaders() {
 // Kept above Render's free-tier cold-start time (~20-50s after idle) so a
 // sleeping backend gets a chance to wake up instead of aborting on it.
 const REQUEST_TIMEOUT_MS = 60000
+// Inference (tiled model pass over a phone-resolution photo) legitimately
+// takes longer than a login/list request, especially on a slow free-tier CPU.
+const UPLOAD_TIMEOUT_MS = 120000
 
-async function fetchWithTimeout(url, options = {}) {
+async function fetchWithTimeout(url, options = {}, timeoutMs = REQUEST_TIMEOUT_MS) {
   const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
   try {
     return await fetch(url, { ...options, signal: controller.signal })
   } catch {
@@ -38,11 +41,15 @@ async function fetchWithTimeout(url, options = {}) {
   }
 }
 
-async function apiFetch(path, options = {}) {
-  const res = await fetchWithTimeout(`${API_BASE_URL}${path}`, {
-    ...options,
-    headers: { ...authHeaders(), ...(options.headers || {}) },
-  })
+async function apiFetch(path, options = {}, timeoutMs) {
+  const res = await fetchWithTimeout(
+    `${API_BASE_URL}${path}`,
+    {
+      ...options,
+      headers: { ...authHeaders(), ...(options.headers || {}) },
+    },
+    timeoutMs,
+  )
   if (res.status === 401) {
     clearToken()
     window.location.href = '/login'
@@ -70,7 +77,7 @@ export async function uploadForCount(blob, modelVersion) {
   const formData = new FormData()
   formData.append('file', blob, 'capture.jpg')
   if (modelVersion) formData.append('model_version', modelVersion)
-  const res = await apiFetch('/api/count', { method: 'POST', body: formData })
+  const res = await apiFetch('/api/count', { method: 'POST', body: formData }, UPLOAD_TIMEOUT_MS)
   if (!res.ok) throw new Error('Count request failed')
   return res.json()
 }

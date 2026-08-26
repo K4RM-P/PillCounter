@@ -1,10 +1,12 @@
-import { useRef } from 'react'
+import { useRef, useState } from 'react'
+import { vibrate } from '../haptics'
 
 // Renders an image with editable pill markers overlaid.
 // markers are stored in normalized (0-1) image coordinates so they stay
 // correctly positioned regardless of the rendered image size.
 export default function MarkerOverlay({ imageUrl, markers, onAddMarker, onRemoveMarker, editable }) {
   const imgRef = useRef(null)
+  const [zoomed, setZoomed] = useState(false)
 
   function handleImageClick(e) {
     if (!editable || !onAddMarker) return
@@ -12,41 +14,54 @@ export default function MarkerOverlay({ imageUrl, markers, onAddMarker, onRemove
     const x = (e.clientX - rect.left) / rect.width
     const y = (e.clientY - rect.top) / rect.height
     onAddMarker({ x, y, confidence: 1.0 })
+    vibrate(8)
+  }
+
+  function handleDoubleClick(e) {
+    e.stopPropagation()
+    setZoomed((z) => !z)
   }
 
   return (
-    <div style={{ position: 'relative', display: 'inline-block', maxWidth: '100%' }}>
+    <div
+      className={`marker-overlay-wrap${zoomed ? ' zoomed' : ''}`}
+      style={{ position: 'relative', display: 'inline-block', maxWidth: '100%', overflow: zoomed ? 'auto' : 'visible' }}
+    >
       <img
         ref={imgRef}
         src={imageUrl}
         alt="Pill count"
         onClick={handleImageClick}
-        style={{ display: 'block', maxWidth: '100%', maxHeight: '46vh', width: 'auto', borderRadius: 16, cursor: editable ? 'crosshair' : 'default' }}
+        onDoubleClick={handleDoubleClick}
+        style={{
+          display: 'block',
+          maxWidth: zoomed ? 'none' : '100%',
+          maxHeight: zoomed ? 'none' : '46vh',
+          width: zoomed ? '180%' : 'auto',
+          borderRadius: 16,
+          cursor: editable ? 'crosshair' : 'default',
+          transition: 'width 0.2s ease',
+        }}
       />
       {markers.map((marker, index) => (
         <div
           key={index}
+          className="marker-hit-target"
           onClick={(e) => {
             if (!editable) return
             e.stopPropagation()
             onRemoveMarker(index)
+            vibrate(8)
           }}
           title={editable ? markerTitle(marker) : undefined}
           style={{
-            position: 'absolute',
             left: `${marker.x * 100}%`,
             top: `${marker.y * 100}%`,
-            width: 12,
-            height: 12,
-            marginLeft: -6,
-            marginTop: -6,
-            borderRadius: '50%',
-            background: markerColor(marker.confidence),
-            border: '1.5px solid white',
-            boxShadow: '0 1px 3px rgba(0,0,0,0.4)',
             cursor: editable ? 'pointer' : 'default',
           }}
-        />
+        >
+          <span className="marker-dot" style={{ background: markerColor(marker.confidence) }} />
+        </div>
       ))}
     </div>
   )
