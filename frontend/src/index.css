@@ -64,7 +64,8 @@ body {
   max-width: 100%;
   margin: 0 auto;
   text-align: center;
-  min-height: 100svh;
+  height: 100dvh;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
@@ -156,20 +157,22 @@ code {
 
 .page {
   text-align: left;
-  padding: 16px 20px calc(84px + env(safe-area-inset-bottom));
+  padding: 16px 20px 20px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 20px;
 }
 
 .app-header {
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
   padding: calc(12px + env(safe-area-inset-top)) 20px 12px;
-  position: sticky;
-  top: 0;
   z-index: 30;
   background: color-mix(in srgb, var(--bg) 88%, transparent);
   backdrop-filter: blur(20px) saturate(1.5);
@@ -185,12 +188,7 @@ code {
 }
 
 .bottom-nav {
-  position: fixed;
-  left: 50%;
-  bottom: 0;
-  transform: translateX(-50%);
-  width: 480px;
-  max-width: 100%;
+  flex: 0 0 auto;
   display: flex;
   align-items: stretch;
   justify-content: space-around;
@@ -325,8 +323,10 @@ code {
   border-radius: 28px;
   overflow: hidden;
   background: #000;
-  aspect-ratio: 3 / 4;
   width: 100%;
+  flex: 1;
+  min-height: 0;
+  max-height: min(70vh, 560px);
   box-shadow: var(--shadow);
 }
 
