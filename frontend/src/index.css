@@ -220,6 +220,7 @@ code {
 }
 
 .bottom-nav .navlink {
+  position: relative;
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -236,7 +237,11 @@ code {
   border: none;
   cursor: pointer;
   font-family: inherit;
-  transition: color 0.15s ease;
+  transition: color 0.15s ease, background 0.2s ease;
+}
+
+.bottom-nav .navlink.active {
+  background: var(--accent-bg);
 }
 
 .bottom-nav .navlink .icon {
@@ -389,6 +394,16 @@ code {
   animation: spin 0.8s linear infinite;
 }
 
+.spinner-sm {
+  width: 15px;
+  height: 15px;
+  border-radius: 999px;
+  border: 2px solid color-mix(in srgb, currentColor 25%, transparent);
+  border-top-color: currentColor;
+  animation: spin 0.8s linear infinite;
+  flex-shrink: 0;
+}
+
 .shutter-btn {
   position: absolute;
   left: 50%;
@@ -481,6 +496,30 @@ code {
   font-size: 14px;
 }
 
+.alert-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: color-mix(in srgb, #e5484d 12%, transparent);
+  border: 1px solid color-mix(in srgb, #e5484d 30%, transparent);
+  color: #e5484d;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.alert-error svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.alert-error-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 4px;
+}
+
 .hint {
   color: var(--text);
   font-size: 14px;
@@ -563,6 +602,12 @@ code {
   border-radius: 18px;
   padding: 14px;
   background: var(--surface);
+  transition: transform 0.15s ease, border-color 0.15s ease;
+}
+
+.stat-tile:active {
+  transform: scale(0.97);
+  border-color: var(--accent-border);
 }
 
 .stat-tile .value {
@@ -574,6 +619,36 @@ code {
 .stat-tile .label {
   font-size: 13px;
   color: var(--text);
+}
+
+.search-field {
+  position: relative;
+}
+
+.search-field .input {
+  width: 100%;
+  padding-right: 36px;
+}
+
+.search-clear {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  border: none;
+  background: var(--surface);
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.search-clear:active {
+  transform: translateY(-50%) scale(0.9);
 }
 
 .toast-stack {
@@ -751,6 +826,18 @@ code {
   padding: 12px;
   background: var(--bg);
   transition: transform 0.1s ease, background 0.15s ease;
+  animation: list-item-in 0.25s ease backwards;
+}
+
+@keyframes list-item-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .history-card:active {

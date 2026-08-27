@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { login } from '../api'
 import { setToken } from '../auth'
 import Disclaimer from '../components/Disclaimer'
+import { vibrate } from '../haptics'
 
 export default function LoginPage() {
   const [username, setUsername] = useState('')
@@ -11,17 +12,21 @@ export default function LoginPage() {
   const [error, setError] = useState(null)
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
+  const usernameRef = useRef(null)
 
   async function handleSubmit(e) {
     e.preventDefault()
+    vibrate(8)
     setLoading(true)
     setError(null)
     try {
       const { token } = await login(username, password)
+      vibrate([10, 40, 10])
       setToken(token)
       navigate('/')
     } catch (err) {
       setError(err.message || 'Login failed')
+      usernameRef.current?.focus()
     } finally {
       setLoading(false)
     }
@@ -42,11 +47,13 @@ export default function LoginPage() {
 
         <form onSubmit={handleSubmit} className="stack" style={{ width: '100%' }}>
           <input
+            ref={usernameRef}
             className="input"
             type="text"
             placeholder="Username"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
+            disabled={loading}
             autoFocus
           />
           <div className="password-field">
@@ -56,6 +63,7 @@ export default function LoginPage() {
               placeholder="Password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              disabled={loading}
             />
             <button
               type="button"
@@ -69,6 +77,7 @@ export default function LoginPage() {
           </div>
           {error && <p className="error-text">{error}</p>}
           <button className="btn btn-primary" type="submit" disabled={loading}>
+            {loading && <span className="spinner-sm" />}
             {loading ? 'Signing in...' : 'Sign in'}
           </button>
         </form>

@@ -29,6 +29,10 @@ function App() {
   useEffect(() => warmBackend(), [])
 
   useEffect(() => {
+    window.scrollTo(0, 0)
+  }, [location.pathname])
+
+  useEffect(() => {
     async function tryFlush() {
       const flushed = await flushQueue(async (blob, label) => {
         const result = await uploadForCount(blob)

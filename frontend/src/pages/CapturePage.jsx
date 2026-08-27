@@ -1,10 +1,11 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { uploadForCount } from '../api'
 import { downscaleImage } from '../downscale'
 import { enqueuePhoto, isNetworkError } from '../offlineQueue'
 import CameraCapture from '../components/CameraCapture'
 import { showToast } from '../toast'
+import { vibrate } from '../haptics'
 
 // Remembered across visits so an A/B comparison session doesn't reset the
 // toggle on every photo.
@@ -26,14 +27,17 @@ export default function CapturePage() {
     () => localStorage.getItem(MODEL_VERSION_KEY) || 'v2',
   )
   const navigate = useNavigate()
+  const lastFileRef = useRef(null)
 
   function selectModelVersion(version) {
+    vibrate(8)
     setModelVersion(version)
     localStorage.setItem(MODEL_VERSION_KEY, version)
   }
 
   async function handleFile(file) {
     if (!file) return
+    lastFileRef.current = file
     setLoading(true)
     setError(null)
     setStage(PROCESSING_STAGES[0].text)
@@ -90,24 +94,19 @@ export default function CapturePage() {
         <p className="hint">Spread pills out on a flat, contrasting surface so they don't overlap.</p>
       </div>
 
-      <div className="row" style={{ gap: 6, alignSelf: 'flex-start', flexWrap: 'wrap' }} role="radiogroup" aria-label="Model version">
+      <div className="segmented" role="radiogroup" aria-label="Model version" style={{ alignSelf: 'stretch' }}>
         {[
           { key: 'v2', label: 'Model v2' },
           { key: 'v3', label: 'Model v3' },
-          { key: 'ensemble', label: 'Ensemble (v2+v3)' },
+          { key: 'ensemble', label: 'Ensemble' },
         ].map(({ key, label }) => (
           <button
             key={key}
             type="button"
             role="radio"
             aria-checked={modelVersion === key}
-            className="btn btn-icon"
+            className={modelVersion === key ? 'active' : ''}
             onClick={() => selectModelVersion(key)}
-            style={
-              modelVersion === key
-                ? { background: 'var(--accent)', borderColor: 'var(--accent)', color: 'var(--accent-contrast)' }
-                : undefined
-            }
           >
             {label}
           </button>
@@ -120,7 +119,23 @@ export default function CapturePage() {
         </p>
       )}
 
-      {error && <p className="error-text">{error}</p>}
+      {error && (
+        <div className="alert-error">
+          <AlertIcon />
+          <div style={{ flex: 1 }}>
+            <p style={{ margin: 0 }}>{error}</p>
+            <div className="alert-error-actions">
+              <button
+                type="button"
+                className="btn btn-icon"
+                onClick={() => handleFile(lastFileRef.current)}
+              >
+                Retry
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {loading && (
         <div className="camera-frame" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -162,5 +177,15 @@ export default function CapturePage() {
         </label>
       )}
     </div>
+  )
+}
+
+function AlertIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" />
+      <line x1="12" y1="9" x2="12" y2="13" />
+      <line x1="12" y1="17" x2="12.01" y2="17" />
+    </svg>
   )
 }

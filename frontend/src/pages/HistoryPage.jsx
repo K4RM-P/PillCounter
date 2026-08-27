@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { fetchCounts, mediaUrl } from '../api'
 import { formatRelativeTime } from '../relativeTime'
+import { vibrate } from '../haptics'
 
 const DAY_OPTIONS = [
   { value: 'all', label: 'All' },
@@ -10,15 +11,32 @@ const DAY_OPTIONS = [
   { value: '30', label: '30d' },
 ]
 
+const DAYS_FILTER_KEY = 'pillcount_history_days'
+
 export default function HistoryPage() {
   const [counts, setCounts] = useState(null)
   const [error, setError] = useState(null)
   const [query, setQuery] = useState('')
   const [minCount, setMinCount] = useState('')
   const [maxCount, setMaxCount] = useState('')
-  const [days, setDays] = useState('all')
+  const [days, setDays] = useState(() => localStorage.getItem(DAYS_FILTER_KEY) || 'all')
   const [lastFetched, setLastFetched] = useState(null)
   const [refreshing, setRefreshing] = useState(false)
+
+  function selectDays(value) {
+    vibrate(8)
+    setDays(value)
+    localStorage.setItem(DAYS_FILTER_KEY, value)
+  }
+
+  const hasActiveFilters = query || minCount || maxCount || days !== 'all'
+
+  function clearFilters() {
+    setQuery('')
+    setMinCount('')
+    setMaxCount('')
+    selectDays('all')
+  }
 
   function load({ silent } = {}) {
     if (silent) setRefreshing(true)
@@ -93,7 +111,10 @@ export default function HistoryPage() {
         </div>
         <button
           className="btn btn-icon"
-          onClick={() => load({ silent: true })}
+          onClick={() => {
+            vibrate(8)
+            load({ silent: true })
+          }}
           disabled={refreshing}
           aria-label="Refresh"
           title="Refresh"
@@ -121,13 +142,20 @@ export default function HistoryPage() {
 
       {counts.length > 0 && (
         <div className="card stack">
-          <input
-            className="input"
-            type="text"
-            placeholder="Search by label..."
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
+          <div className="search-field">
+            <input
+              className="input"
+              type="text"
+              placeholder="Search by label..."
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+            />
+            {query && (
+              <button type="button" className="search-clear" onClick={() => setQuery('')} aria-label="Clear search">
+                <ClearIcon />
+              </button>
+            )}
+          </div>
           <div className="row">
             <input
               className="input"
@@ -152,12 +180,17 @@ export default function HistoryPage() {
                 key={opt.value}
                 type="button"
                 className={days === opt.value ? 'active' : ''}
-                onClick={() => setDays(opt.value)}
+                onClick={() => selectDays(opt.value)}
               >
                 {opt.label}
               </button>
             ))}
           </div>
+          {hasActiveFilters && (
+            <button type="button" className="btn" style={{ alignSelf: 'flex-start', background: 'transparent', border: 'none', padding: '4px 0' }} onClick={clearFilters}>
+              Clear all filters
+            </button>
+          )}
         </div>
       )}
 
@@ -177,8 +210,8 @@ export default function HistoryPage() {
 
       {filtered.length > 0 && <p className="section-label">Recent counts</p>}
       <div className="stack">
-        {filtered.map((c) => (
-          <Link key={c.id} to={`/history/${c.id}`} className="history-card">
+        {filtered.map((c, i) => (
+          <Link key={c.id} to={`/history/${c.id}`} className="history-card" style={{ animationDelay: `${Math.min(i, 8) * 30}ms` }}>
             <img className="thumb" src={mediaUrl(c.image_id)} alt="" />
             <div className="meta">
               <div className="title-row">
@@ -200,6 +233,15 @@ function HistoryEmptyIcon() {
       <path d="M3 3v5h5" />
       <path d="M3.05 13a9 9 0 1 0 .5-4.5L3 8" />
       <path d="M12 7v5l4 2" />
+    </svg>
+  )
+}
+
+function ClearIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+      <line x1="18" y1="6" x2="6" y2="18" />
+      <line x1="6" y1="6" x2="18" y2="18" />
     </svg>
   )
 }
