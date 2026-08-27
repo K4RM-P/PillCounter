@@ -817,14 +817,12 @@ code {
   flex-shrink: 0;
 }
 
-/* Invisible 28px hit target around each 12px marker dot — dots are too
-   small to reliably tap on a phone otherwise. */
 .marker-hit-target {
   position: absolute;
-  width: 28px;
-  height: 28px;
-  margin-left: -14px;
-  margin-top: -14px;
+  width: 12px;
+  height: 12px;
+  margin-left: -6px;
+  margin-top: -6px;
   display: flex;
   align-items: center;
   justify-content: center;
