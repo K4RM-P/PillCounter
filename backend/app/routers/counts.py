@@ -9,6 +9,7 @@ from app.auth import require_auth
 from app.config import settings
 from app.db import get_db
 from app.inference.counter import count_pills
+from app.inference.quality import assess_image_quality
 from app.models import Count
 from app.schemas import CountCreate, CountDetail, CountOut, CountResponse
 from app.storage import save_image
@@ -25,19 +26,28 @@ async def count_image(file: UploadFile, model_version: Optional[str] = Form(defa
         raise HTTPException(status_code=400, detail="Could not decode image")
 
     weights_path = None
-    if model_version is not None:
+    ensemble = False
+    if model_version == "ensemble":
+        ensemble = True
+    elif model_version is not None:
         weights_path = settings.MODEL_VERSIONS.get(model_version)
         if weights_path is None:
             raise HTTPException(status_code=400, detail=f"Unknown model_version '{model_version}'")
 
     height, width = image.shape[:2]
-    detections = count_pills(image, weights_path=weights_path)
+    detections = count_pills(image, weights_path=weights_path, ensemble=ensemble)
     detections = [d for d in detections if d["confidence"] >= settings.CONFIDENCE_THRESHOLD]
+    warnings = assess_image_quality(image)
 
     image_id = save_image(data)
 
     return CountResponse(
-        image_id=image_id, count=len(detections), detections=detections, width=width, height=height
+        image_id=image_id,
+        count=len(detections),
+        detections=detections,
+        width=width,
+        height=height,
+        warnings=warnings,
     )
 
 

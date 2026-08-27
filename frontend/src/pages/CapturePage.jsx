@@ -64,10 +64,11 @@ export default function CapturePage() {
         y: d.y / result.height,
         confidence: d.confidence,
         size: d.size ?? undefined,
+        agreement: d.agreement ?? undefined,
       }))
 
       navigate('/result', {
-        state: { imageId: result.image_id, markers, modelVersion },
+        state: { imageId: result.image_id, markers, modelVersion, qualityWarnings: result.warnings },
       })
     } catch (err) {
       setError(err.message || 'Something went wrong')
@@ -89,25 +90,35 @@ export default function CapturePage() {
         <p className="hint">Spread pills out on a flat, contrasting surface so they don't overlap.</p>
       </div>
 
-      <div className="row" style={{ gap: 6, alignSelf: 'flex-start' }} role="radiogroup" aria-label="Model version">
-        {['v2', 'v3'].map((version) => (
+      <div className="row" style={{ gap: 6, alignSelf: 'flex-start', flexWrap: 'wrap' }} role="radiogroup" aria-label="Model version">
+        {[
+          { key: 'v2', label: 'Model v2' },
+          { key: 'v3', label: 'Model v3' },
+          { key: 'ensemble', label: 'Ensemble (v2+v3)' },
+        ].map(({ key, label }) => (
           <button
-            key={version}
+            key={key}
             type="button"
             role="radio"
-            aria-checked={modelVersion === version}
+            aria-checked={modelVersion === key}
             className="btn btn-icon"
-            onClick={() => selectModelVersion(version)}
+            onClick={() => selectModelVersion(key)}
             style={
-              modelVersion === version
+              modelVersion === key
                 ? { background: 'var(--accent)', borderColor: 'var(--accent)', color: 'var(--accent-contrast)' }
                 : undefined
             }
           >
-            Model {version}
+            {label}
           </button>
         ))}
       </div>
+      {modelVersion === 'ensemble' && (
+        <p className="hint">
+          Runs both models and combines what either found — slower, but a pill only one model catches still gets
+          counted, flagged for a quick look instead of silently missed.
+        </p>
+      )}
 
       {error && <p className="error-text">{error}</p>}
 

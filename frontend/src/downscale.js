@@ -1,10 +1,12 @@
 // Bounds only pathologically large source photos (e.g. desktop screenshots,
-// DSLR exports) — phone camera photos (~3000-4100px) pass through close to
-// native resolution. The pill counter's tiled inference needs that detail:
-// dropping to 1600px measurably loses small/overlapping pills in dense trays
-// (verified: a 13-pill tray photo counted 13/13 at native res vs 11/13 once
-// downscaled to 1600px).
-const MAX_DIMENSION = 4096
+// DSLR exports) — phone camera photos (~3000-6000px, higher-end Android
+// sensors included) pass through close to native resolution. The pill
+// counter's tiled inference needs that detail: dropping to 1600px
+// measurably loses small/overlapping pills in dense trays (verified: a
+// 13-pill tray photo counted 13/13 at native res vs 11/13 once downscaled
+// to 1600px). Raised from 4096 for very dense (300-400 pill) photos, where
+// even more raw resolution per pill keeps paying off.
+const MAX_DIMENSION = 6000
 
 function isHeic(file) {
   const type = (file.type || '').toLowerCase()

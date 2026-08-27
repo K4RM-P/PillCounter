@@ -26,7 +26,7 @@ export default function CameraCapture({ onCapture, onUnavailable }) {
           // dense/overlapping pills, so we don't want to pre-limit this the
           // way the old 1600px cap did. The browser clamps to whatever the
           // hardware actually supports.
-          video: { facingMode: 'environment', width: { ideal: 4096 }, height: { ideal: 4096 } },
+          video: { facingMode: 'environment', width: { ideal: 6000 }, height: { ideal: 6000 } },
           audio: false,
         })
         if (cancelled) {

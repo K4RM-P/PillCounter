@@ -22,6 +22,11 @@ class Detection(BaseModel):
     # pill size. Optional/None for manually-added markers, which have no
     # detected box to measure.
     size: Optional[float] = None
+    # Only meaningful when the request used ensemble=True: True if more than
+    # one model version independently found this pill, False if only one
+    # did, None outside ensemble mode. Informational only — never affects
+    # whether a detection is counted.
+    agreement: Optional[bool] = None
 
 
 class CountResponse(BaseModel):
@@ -35,6 +40,9 @@ class CountResponse(BaseModel):
     # inconsistent measurement of the same image).
     width: int
     height: int
+    # Pre-flight photo quality issues (blur, exposure) — informational only,
+    # never affects detections/count. See app/inference/quality.py.
+    warnings: list[str] = []
 
 
 class CountCreate(BaseModel):

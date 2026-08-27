@@ -7,7 +7,18 @@ large images are sliced into overlapping tiles, detected individually, then
 merged with distance-based deduplication to avoid double-counting pills that
 fall in the overlap between tiles.
 
-Public interface — count_pills(image) -> [{x, y, confidence}] — is the
+Every extra detection pass added here (multi-scale, the full-image union,
+the dense-region recrop) is deliberately additive: it can only ever propose
+*more* candidate boxes into the shared dedup/filter pipeline below, never
+remove one directly. The only things allowed to remove a detection are the
+filters, and each of those is scoped narrowly enough that a real pill can't
+plausibly be mistaken for what it's looking for (see each filter's
+docstring). This is a deliberate design rule, not an accident — the
+project's history includes more than one filter that got too aggressive and
+silently dropped real pills, which is a much worse failure mode than an
+occasional false positive a human can just tap away.
+
+Public interface — count_pills(image) -> [{x, y, confidence, size}] — is the
 contract calling code depends on and stays stable regardless of these
 internal accuracy improvements.
 """
@@ -24,13 +35,20 @@ from app.inference.model import get_model, resolve_device
 # against — see _tiled_detections.
 TILE_SIZE_REFERENCE_DIM = 4032
 
+# Mirrors the frontend's own marker color bands (MarkerOverlay.jsx
+# markerColor()) — >=CONFIDENT is shown purple/"Confident", <FLAGGED is
+# shown red/"Flagged". Kept in sync so "flagged" means the same thing on
+# both sides.
+_CONFIDENT_THRESHOLD = 0.75
+_FLAGGED_THRESHOLD = 0.5
+
 
 def _enhance_contrast(image: np.ndarray) -> np.ndarray:
     """CLAHE (adaptive histogram equalization) on the lightness channel —
-    normalizes glare/shadow/lighting variation across a tray photo before
-    detection. Only used for the model's input; the original `image` is
-    kept for color-based filtering downstream so that step still sees true
-    pill colors, not contrast-boosted ones."""
+    normalizes glare/shadow variation across a tray photo before detection.
+    Only used for the model's input; the original `image` is kept for
+    color-based filtering downstream so that step still sees true pill
+    colors, not contrast-boosted ones."""
     lab = cv2.cvtColor(image, cv2.COLOR_BGR2LAB)
     l_channel, a_channel, b_channel = cv2.split(lab)
     clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
@@ -39,17 +57,38 @@ def _enhance_contrast(image: np.ndarray) -> np.ndarray:
     return cv2.cvtColor(enhanced_lab, cv2.COLOR_LAB2BGR)
 
 
-def count_pills(image: np.ndarray, weights_path: str | None = None) -> list[dict]:
-    model = get_model(weights_path)
+def count_pills(image: np.ndarray, weights_path: str | None = None, ensemble: bool = False) -> list[dict]:
+    """ensemble=True runs every configured model version (see
+    settings.MODEL_VERSIONS) and unions their detections instead of a single
+    model's. This can only ever add detections one model missed — it never
+    removes a detection either model found. Each returned detection reports
+    `agreement`: True if more than one model independently found it, so the
+    frontend can surface disagreement as a review signal without it ever
+    affecting whether something gets counted.
+    """
     device = resolve_device()
     height, width = image.shape[:2]
     detection_input = _enhance_contrast(image) if settings.CONTRAST_ENHANCE else image
 
-    if settings.TILE_INFERENCE and max(height, width) > settings.TILE_MIN_IMAGE_SIZE:
-        raw_detections = _tiled_detections(model, detection_input, device)
+    if ensemble:
+        raw_detections: list[dict] = []
+        for version, path in settings.MODEL_VERSIONS.items():
+            model = get_model(path)
+            for d in _detect_raw(model, detection_input, device, height, width):
+                d["_sources"] = {version}
+                raw_detections.append(d)
     else:
-        result = _predict(model, detection_input, device)
-        raw_detections = _boxes_from_result(result)
+        model = get_model(weights_path)
+        raw_detections = _detect_raw(model, detection_input, device, height, width)
+        for d in raw_detections:
+            d.setdefault("_sources", set())
+
+    if settings.DENSE_RECROP_ENABLED and len(raw_detections) >= settings.DENSE_RECROP_MIN_DETECTIONS:
+        recrop_model = get_model(weights_path) if not ensemble else get_model(settings.MODEL_WEIGHTS_PATH)
+        recropped = _dense_recrop_detections(recrop_model, detection_input, device, raw_detections, height, width)
+        for d in recropped:
+            d.setdefault("_sources", set())
+        raw_detections = raw_detections + recropped
 
     deduped = _dedup(raw_detections)
     tray_filtered = _filter_outside_tray(image, deduped)
@@ -68,9 +107,103 @@ def count_pills(image: np.ndarray, weights_path: str | None = None) -> list[dict
             # keeps circles round regardless of the displayed image's aspect
             # ratio, unlike normalizing width/height separately would.
             "size": max(d["_w"], d["_h"]) / width if d.get("_w", 0) > 0 else None,
+            "agreement": len(d.get("_sources", ())) > 1 if ensemble else None,
         }
         for d in flagged_filtered
     ]
+
+
+def _inference_scales() -> list[int]:
+    """Which imgsz values to run detection at. Multiple scales catch
+    different failure modes (a lower imgsz sees more context per tile pass,
+    a higher one preserves more per-pill pixel detail) — fusing both only
+    adds candidate boxes into the shared dedup step below."""
+    scales = [settings.INFERENCE_IMGSZ]
+    if settings.MULTI_SCALE_FUSION and settings.INFERENCE_IMGSZ_SECONDARY != settings.INFERENCE_IMGSZ:
+        scales.append(settings.INFERENCE_IMGSZ_SECONDARY)
+    return scales
+
+
+def _detect_raw(model, detection_input: np.ndarray, device: str, height: int, width: int) -> list[dict]:
+    """Runs every configured detection pass (tiled, optionally unioned with
+    a full-image pass, at one or more scales) and returns the combined,
+    not-yet-deduplicated candidate boxes — deduplication happens exactly
+    once, in count_pills, on the full pool from every pass together.
+
+    An earlier version deduplicated each pass here and then again in
+    count_pills. That turned out to be a real bug, not just redundant:
+    _dedup's merge-distance threshold is derived from the median pill size
+    *of the detections passed in*, and its weighted-box-fusion averaging
+    shifts merged boxes' sizes slightly. Feeding already-fused output back
+    into another dedup pass shifts that threshold again, and empirically
+    caused a second round of merges that wrongly fused two distinct,
+    closely-spaced real pills that the first pass had correctly kept
+    separate — measured directly: double-dedup dropped a 13-pill reference
+    photo to 9-10 even with every new detection pass disabled, i.e. it broke
+    the existing baseline, not just the new additions. Dedup is not
+    idempotent here, so it must run exactly once.
+    """
+    scales = _inference_scales()
+    detections: list[dict] = []
+    use_tiling = settings.TILE_INFERENCE and max(height, width) > settings.TILE_MIN_IMAGE_SIZE
+
+    if use_tiling:
+        for imgsz in scales:
+            detections.extend(_tiled_detections(model, detection_input, device, imgsz))
+        if settings.FULL_PASS_UNION:
+            # A single full-image pass loses per-pill resolution on a dense
+            # tray (the whole reason tiling exists), so it won't reliably
+            # find tiny/touching pills on its own — but it sees pills whole
+            # that happen to sit awkwardly across several tile seams, which
+            # tile overlap alone doesn't fully guarantee. Purely additive:
+            # anything it finds just becomes another dedup candidate.
+            for imgsz in scales:
+                result = _predict(model, detection_input, device, imgsz=imgsz)
+                detections.extend(_boxes_from_result(result))
+    else:
+        for imgsz in scales:
+            result = _predict(model, detection_input, device, imgsz=imgsz)
+            detections.extend(_boxes_from_result(result))
+
+    return detections
+
+
+def _dense_recrop_detections(
+    model, detection_input: np.ndarray, device: str, existing: list[dict], height: int, width: int
+) -> list[dict]:
+    """Re-detects inside a tight crop around the existing detections'
+    bounding region, at the standard imgsz — since the crop is physically
+    smaller than the full photo, each pill occupies more of the model's
+    input resolution than it did during tiling, which can recover pills
+    missed in the very densest part of a photo. Purely additive: its output
+    is just more candidates for the shared dedup step, never a replacement
+    for the existing detections.
+    """
+    sized = [d for d in existing if d.get("_w", 0) > 0 and d.get("_h", 0) > 0]
+    if not sized:
+        return []
+
+    xs = [d["x"] for d in existing]
+    ys = [d["y"] for d in existing]
+    sizes = sorted(max(d["_w"], d["_h"]) for d in sized)
+    median_size = sizes[len(sizes) // 2]
+    pad = median_size * 1.5
+
+    x1, x2 = max(0.0, min(xs) - pad), min(float(width), max(xs) + pad)
+    y1, y2 = max(0.0, min(ys) - pad), min(float(height), max(ys) + pad)
+    crop_w, crop_h = x2 - x1, y2 - y1
+    if crop_w <= 0 or crop_h <= 0:
+        return []
+    # Only worth it when the dense region is meaningfully smaller than the
+    # full frame — otherwise there's no real resolution to gain by cropping.
+    if crop_w * crop_h > 0.6 * width * height:
+        return []
+
+    crop = detection_input[int(y1) : int(y2), int(x1) : int(x2)]
+    if crop.size == 0:
+        return []
+    result = _predict(model, crop, device, imgsz=settings.INFERENCE_IMGSZ)
+    return _boxes_from_result(result, offset_x=x1, offset_y=y1)
 
 
 def _predict(model, image: np.ndarray, device: str, imgsz: int | None = None):
@@ -111,7 +244,7 @@ def _tile_starts(dim: int, tile: int, stride: int) -> list[int]:
     return starts
 
 
-def _tiled_detections(model, image: np.ndarray, device: str) -> list[dict]:
+def _tiled_detections(model, image: np.ndarray, device: str, imgsz: int | None = None) -> list[dict]:
     height, width = image.shape[:2]
     # Scale tile size proportionally to the actual photo's resolution — a
     # fixed pixel tile size makes pills occupy a smaller fraction of each
@@ -137,7 +270,7 @@ def _tiled_detections(model, image: np.ndarray, device: str) -> list[dict]:
             pad_h, pad_w = tile - crop.shape[0], tile - crop.shape[1]
             if pad_h > 0 or pad_w > 0:
                 crop = cv2.copyMakeBorder(crop, 0, pad_h, 0, pad_w, cv2.BORDER_REFLECT_101)
-            result = _predict(model, crop, device, imgsz=settings.INFERENCE_IMGSZ)
+            result = _predict(model, crop, device, imgsz=imgsz or settings.INFERENCE_IMGSZ)
             detections.extend(_boxes_from_result(result, offset_x=x, offset_y=y))
     return detections
 
@@ -145,7 +278,8 @@ def _tiled_detections(model, image: np.ndarray, device: str) -> list[dict]:
 def _dedup(detections: list[dict]) -> list[dict]:
     """Merges detections whose centers are closer than a fraction of the
     median pill size — handles the same pill being detected in two
-    overlapping tiles, or (rarely) twice within one tile."""
+    overlapping tiles, at two different scales, in both the tiled and
+    full-image pass, or (rarely) twice within one pass."""
     if not detections:
         return detections
 
@@ -161,24 +295,36 @@ def _dedup(detections: list[dict]) -> list[dict]:
             None,
         )
         if match is None:
-            kept.append(dict(d, _n=1, _anchor_x=d["x"], _anchor_y=d["y"]))
+            kept.append(
+                dict(d, _sum_w=d["confidence"], _wx=d["x"] * d["confidence"], _wy=d["y"] * d["confidence"],
+                     _ww=d["_w"] * d["confidence"], _wh=d["_h"] * d["confidence"],
+                     _anchor_x=d["x"], _anchor_y=d["y"], _sources=set(d.get("_sources", ())))
+            )
             continue
-        # Confidence-weighted running average of the merged boxes' centers/size
-        # (a lightweight weighted-box-fusion) instead of just keeping the
-        # highest-confidence box's raw center — the same pill seen from two
-        # tiles rarely has its true center exactly on either single detection.
-        # Matching itself always compares against the original highest-
-        # confidence anchor position (not the drifting blended average) so
-        # merges can't chain into unrelated nearby pills.
-        n = match["_n"]
-        total_w = match["confidence"] * n + d["confidence"]
-        for key in ("x", "y", "_w", "_h"):
-            match[key] = (match[key] * match["confidence"] * n + d[key] * d["confidence"]) / total_w
+        # True weighted-box-fusion average: each contributing detection's
+        # original confidence weights its contribution to the merged
+        # position/size, tracked as running weighted sums rather than a
+        # sequential running average re-weighted by the (possibly already
+        # maxed) merged confidence — that subtly distorts the result toward
+        # whichever detection merged in first. Reported confidence is still
+        # the max of the group (that's a calibration/threshold decision, not
+        # a spatial one). Matching always compares against the original
+        # highest-confidence anchor position (not the drifting fused
+        # average) so merges can't chain into unrelated nearby pills.
+        match["_sum_w"] += d["confidence"]
+        match["_wx"] += d["x"] * d["confidence"]
+        match["_wy"] += d["y"] * d["confidence"]
+        match["_ww"] += d["_w"] * d["confidence"]
+        match["_wh"] += d["_h"] * d["confidence"]
+        match["x"] = match["_wx"] / match["_sum_w"]
+        match["y"] = match["_wy"] / match["_sum_w"]
+        match["_w"] = match["_ww"] / match["_sum_w"]
+        match["_h"] = match["_wh"] / match["_sum_w"]
         match["confidence"] = max(match["confidence"], d["confidence"])
-        match["_n"] = n + 1
+        match["_sources"] |= set(d.get("_sources", ()))
     for k in kept:
-        k.pop("_anchor_x", None)
-        k.pop("_anchor_y", None)
+        for key in ("_anchor_x", "_anchor_y", "_sum_w", "_wx", "_wy", "_ww", "_wh"):
+            k.pop(key, None)
     return kept
 
 
@@ -242,13 +388,25 @@ def _filter_outside_tray(image: np.ndarray, detections: list[dict]) -> list[dict
     return [d for idx, d in enumerate(detections) if idx in largest_set]
 
 
+def _short_long_axes(d: dict) -> tuple[float, float]:
+    return min(d["_w"], d["_h"]), max(d["_w"], d["_h"])
+
+
 def _filter_size_shape_outliers(detections: list[dict]) -> list[dict]:
-    """Real pills in one tray photo are close to uniform in size and shape —
-    but "uniform shape" doesn't mean circular, pills are round, oval, or
-    capsule-shaped depending on the medication. So instead of assuming a
-    fixed target shape, this compares each detection's size and aspect
-    ratio against the *median of this photo's own population*. Tray
-    hardware (hinges, screws, rivets) that slips past the confidence
+    """Real pills in one tray photo are close to uniform in size — but a
+    pill lying at an angle or "sideways" (viewed end-on rather than
+    face-on, common for oval/capsule shapes) can look much shorter along
+    its long axis than one lying flat, even though it's the same pill.
+    Comparing against the population's *short* axis (width) — which stays
+    roughly constant regardless of in-plane rotation or how much the pill
+    is tilted/turned — instead of comparing against the long axis (which
+    doesn't) means a sideways pill isn't mistaken for an undersized
+    outlier. The long axis still gets an upper bound (nothing legitimate
+    should be dramatically longer than the population), just no lower
+    bound tied to elongation, since "shorter because it's turned" is
+    exactly the real case this is meant to tolerate.
+
+    Tray hardware (hinges, screws, rivets) that slips past the confidence
     threshold tends to stand out from whatever the pills in this photo
     actually look like, so it's the outliers relative to the batch that get
     dropped — not detections that fail some absolute "must be round" rule.
@@ -263,26 +421,25 @@ def _filter_size_shape_outliers(detections: list[dict]) -> list[dict]:
     if len(sized) < 8:
         return detections
 
-    diagonals = sorted(max(d["_w"], d["_h"]) for d in sized)
-    median_diag = diagonals[len(diagonals) // 2]
-
-    aspects = sorted(max(d["_w"], d["_h"]) / max(1e-6, min(d["_w"], d["_h"])) for d in sized)
-    median_aspect = aspects[len(aspects) // 2]
+    shorts = sorted(_short_long_axes(d)[0] for d in sized)
+    median_short = shorts[len(shorts) // 2]
+    longs = sorted(_short_long_axes(d)[1] for d in sized)
+    median_long = longs[len(longs) // 2]
 
     kept = []
     for d in detections:
         if d["_w"] <= 0 or d["_h"] <= 0:
             kept.append(d)
             continue
-        diag = max(d["_w"], d["_h"])
-        aspect = max(d["_w"], d["_h"]) / max(1e-6, min(d["_w"], d["_h"]))
-        # Reject boxes far smaller/larger than this photo's typical pill.
-        if diag < median_diag * 0.4 or diag > median_diag * 2.5:
+        short, long_ = _short_long_axes(d)
+        # Reject boxes whose short (rotation-invariant) axis is far
+        # smaller/larger than this photo's typical pill.
+        if short < median_short * 0.4 or short > median_short * 2.5:
             continue
-        # Reject boxes whose elongation is way off from this photo's typical
-        # pill shape (e.g. a round screw among oval tablets, or vice versa),
-        # rather than assuming pills must be round.
-        if aspect > median_aspect * 2.5 + 0.5:
+        # Reject only implausibly long boxes — no lower bound here, so a
+        # pill turned to look short/round (sideways) isn't rejected for
+        # having a long axis close to its short axis.
+        if long_ > median_long * 2.5:
             continue
         kept.append(d)
     return kept
@@ -354,14 +511,6 @@ def _filter_color_outliers(image: np.ndarray, detections: list[dict]) -> list[di
     return kept
 
 
-# Mirrors the frontend's own marker color bands (MarkerOverlay.jsx
-# markerColor()) — >=CONFIDENT is shown purple/"Confident", <FLAGGED is
-# shown red/"Flagged". Kept in sync so "flagged" means the same thing on
-# both sides.
-_CONFIDENT_THRESHOLD = 0.75
-_FLAGGED_THRESHOLD = 0.5
-
-
 def _filter_flagged_outliers(image: np.ndarray, detections: list[dict]) -> list[dict]:
     """A flagged (low-confidence) detection that's ALSO a stark size, shape,
     or color outlier compared to the tray's confident detections is very
@@ -383,10 +532,10 @@ def _filter_flagged_outliers(image: np.ndarray, detections: list[dict]) -> list[
         return detections
 
     sized = [d for d in confident if d.get("_w", 0) > 0 and d.get("_h", 0) > 0]
-    diagonals = sorted(max(d["_w"], d["_h"]) for d in sized) if sized else []
-    median_diag = diagonals[len(diagonals) // 2] if diagonals else None
-    aspects = sorted(max(d["_w"], d["_h"]) / max(1e-6, min(d["_w"], d["_h"])) for d in sized) if sized else []
-    median_aspect = aspects[len(aspects) // 2] if aspects else None
+    shorts = sorted(_short_long_axes(d)[0] for d in sized) if sized else []
+    median_short = shorts[len(shorts) // 2] if shorts else None
+    longs = sorted(_short_long_axes(d)[1] for d in sized) if sized else []
+    median_long = longs[len(longs) // 2] if longs else None
 
     colors = []
     for d in confident:
@@ -402,12 +551,11 @@ def _filter_flagged_outliers(image: np.ndarray, detections: list[dict]) -> list[
     dropped_ids = set()
     for d in flagged:
         is_outlier = False
-        if median_diag is not None and d.get("_w", 0) > 0 and d.get("_h", 0) > 0:
-            diag = max(d["_w"], d["_h"])
-            aspect = max(d["_w"], d["_h"]) / max(1e-6, min(d["_w"], d["_h"]))
-            if diag < median_diag * 0.4 or diag > median_diag * 2.5:
+        if median_short is not None and d.get("_w", 0) > 0 and d.get("_h", 0) > 0:
+            short, long_ = _short_long_axes(d)
+            if short < median_short * 0.4 or short > median_short * 2.5:
                 is_outlier = True
-            if median_aspect is not None and aspect > median_aspect * 2.5 + 0.5:
+            if median_long is not None and long_ > median_long * 2.5:
                 is_outlier = True
         if median_color is not None:
             color = d.get("_color")

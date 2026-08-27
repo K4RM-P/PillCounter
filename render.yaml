@@ -23,3 +23,13 @@ services:
         value: "false"
       - key: INFERENCE_IMGSZ
         value: "960"
+      # Same reasoning — these each roughly double inference cost on their
+      # own (and compound when combined), which is fine on real hardware but
+      # risks tripping the free tier's request timeout. Remove these
+      # overrides too once off the free plan.
+      - key: MULTI_SCALE_FUSION
+        value: "false"
+      - key: FULL_PASS_UNION
+        value: "false"
+      - key: DENSE_RECROP_ENABLED
+        value: "false"

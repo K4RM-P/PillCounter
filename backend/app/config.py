@@ -44,10 +44,35 @@ class Settings:
     # Tiling only kicks in once the image exceeds this size in either dimension.
     TILE_MIN_IMAGE_SIZE: int = int(os.getenv("TILE_MIN_IMAGE_SIZE", "1000"))
     TILE_SIZE: int = int(os.getenv("TILE_SIZE", "800"))
-    # Slightly more overlap than SAHI's common 0.2 default, so a pill sitting
-    # right on a tile boundary is less likely to be clipped in every tile it
-    # appears in (which would drop it below DEDUP's min-box-fraction cutoff).
+    # More overlap than SAHI's common 0.2 default, so a pill sitting right on
+    # a tile boundary is less likely to be clipped in every tile it appears
+    # in (which would drop it below DEDUP's min-box-fraction cutoff).
+    # Tested raising this further (0.28-0.35) expecting a straightforward
+    # improvement — measured instead that it increases raw candidate density
+    # enough to raise the odds of two distinct, closely-spaced real pills
+    # getting merged by dedup, with no consistent net benefit across the
+    # test set. Left at the original, empirically-better value.
     TILE_OVERLAP: float = float(os.getenv("TILE_OVERLAP", "0.25"))
+    # Also run one full-image detection pass and union its results with the
+    # tiled passes (via the normal dedup step) — purely additive, since a
+    # pill sitting awkwardly across several tile seams that tile overlap
+    # alone didn't fully protect can still be caught whole by the full pass.
+    # Doubles inference cost on large images when enabled.
+    FULL_PASS_UNION: bool = os.getenv("FULL_PASS_UNION", "true").lower() == "true"
+    # Run detection at a second imgsz and union results with the primary
+    # scale — different scales catch different failure modes (a lower imgsz
+    # sees more context per tile, a higher one preserves more per-pill
+    # pixel detail). Purely additive; roughly doubles inference cost.
+    MULTI_SCALE_FUSION: bool = os.getenv("MULTI_SCALE_FUSION", "true").lower() == "true"
+    INFERENCE_IMGSZ_SECONDARY: int = int(os.getenv("INFERENCE_IMGSZ_SECONDARY", "960"))
+    # After the main detection pass, re-detect inside a tight crop around
+    # the existing detections' bounding region (see
+    # counter.py:_dense_recrop_detections) — the crop is physically smaller
+    # than the full photo, so each pill gets more of the model's input
+    # resolution, which can recover pills missed in the very densest part of
+    # a photo. Purely additive: only ever proposes more dedup candidates.
+    DENSE_RECROP_ENABLED: bool = os.getenv("DENSE_RECROP_ENABLED", "true").lower() == "true"
+    DENSE_RECROP_MIN_DETECTIONS: int = int(os.getenv("DENSE_RECROP_MIN_DETECTIONS", "20"))
     # Adaptive histogram equalization (CLAHE) before detection — normalizes
     # glare/shadow variation across a tray photo. Applied only to the
     # model's input, not to the image used for color-outlier filtering.

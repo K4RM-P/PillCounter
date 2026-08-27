@@ -10,7 +10,7 @@ import { vibrate } from '../haptics'
 export default function ResultPage() {
   const location = useLocation()
   const navigate = useNavigate()
-  const { imageId, markers: initialMarkers, modelVersion } = location.state || {}
+  const { imageId, markers: initialMarkers, modelVersion, qualityWarnings } = location.state || {}
 
   const [history, setHistory] = useState([initialMarkers || []])
   const [historyIndex, setHistoryIndex] = useState(0)
@@ -115,6 +115,7 @@ export default function ResultPage() {
       ? Math.abs(verifyCount - markers.length) / markers.length
       : 0
   const flaggedCount = markers.filter((m) => (m.confidence ?? 1) < 0.75).length
+  const disagreementCount = markers.filter((m) => m.agreement === false).length
 
   return (
     <div className="page" style={{ paddingBottom: 0 }}>
@@ -154,6 +155,19 @@ export default function ResultPage() {
           {flaggedCount} low-confidence detection{flaggedCount === 1 ? '' : 's'} flagged — worth a second look.
         </p>
       )}
+
+      {disagreementCount > 0 && (
+        <p className="badge badge-warn" style={{ alignSelf: 'flex-start' }}>
+          {disagreementCount} pill{disagreementCount === 1 ? '' : 's'} only found by one of the two models —
+          still counted, worth a second look.
+        </p>
+      )}
+
+      {qualityWarnings?.map((w) => (
+        <p key={w} className="badge badge-warn" style={{ alignSelf: 'flex-start' }}>
+          {w}
+        </p>
+      ))}
 
       <MarkerOverlay
         imageUrl={mediaUrl(imageId)}
