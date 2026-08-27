@@ -15,4 +15,8 @@ COPY . .
 
 EXPOSE 8000
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+# No --reload: that's a dev-only flag (spawns a file-watcher process) that
+# has no purpose in production and was observed crashing the container on
+# Render with "Too many open files" (watchfiles hitting the container's fd
+# limit) before the app even got a chance to start.
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
