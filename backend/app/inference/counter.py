@@ -167,72 +167,64 @@ def _dedup(detections: list[dict]) -> list[dict]:
     return kept
 
 
-def _tray_mask(image: np.ndarray) -> np.ndarray | None:
-    """Builds a binary mask of the counting surface (tray, mat, sheet of
-    paper) that detections must fall on. Pills are essentially never
-    photographed touching the frame edge, so a thin strip around the image
-    border is a reliable sample of "background" regardless of tray color —
-    the mask is then just the largest region that contrasts with that
-    background. Returns None (meaning: don't filter) when no clear
-    foreground region is found, e.g. a tray that fills the whole frame.
-    """
-    height, width = image.shape[:2]
-    lab = cv2.cvtColor(image, cv2.COLOR_BGR2LAB).astype(np.float32)
-
-    border = np.concatenate(
-        [
-            lab[:20, :].reshape(-1, 3),
-            lab[-20:, :].reshape(-1, 3),
-            lab[:, :20].reshape(-1, 3),
-            lab[:, -20:].reshape(-1, 3),
-        ]
-    )
-    bg_mean = border.mean(axis=0)
-    bg_std = border.std(axis=0) + 1e-6
-
-    dist = np.sqrt(np.sum(((lab - bg_mean) / bg_std) ** 2, axis=2))
-    foreground = (dist > 3.0).astype(np.uint8) * 255
-
-    kernel = np.ones((15, 15), np.uint8)
-    foreground = cv2.morphologyEx(foreground, cv2.MORPH_CLOSE, kernel)
-    foreground = cv2.morphologyEx(foreground, cv2.MORPH_OPEN, kernel)
-
-    contours, _ = cv2.findContours(foreground, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    if not contours:
-        return None
-    largest = max(contours, key=cv2.contourArea)
-    if cv2.contourArea(largest) < 0.05 * height * width:
-        return None
-
-    mask = np.zeros((height, width), np.uint8)
-    cv2.drawContours(mask, [largest], -1, 255, thickness=cv2.FILLED)
-    # Dilate so a pill whose center sits right at a soft/blurry tray edge
-    # isn't rejected for being a few pixels outside the strict contour.
-    return cv2.dilate(mask, np.ones((25, 25), np.uint8))
-
-
 def _filter_outside_tray(image: np.ndarray, detections: list[dict]) -> list[dict]:
-    """Drops detections whose center falls outside the counting surface —
+    """Drops detections that are spatial outliers from the main group —
     catches background clutter (table edges, nearby objects) that happens to
     look pill-sized/pill-colored/pill-shaped enough to pass the other
     filters, since none of those filters know anything about *where* the
     pills should be.
+
+    Clusters detections by proximity to each other (not by tray/background
+    pixel color — an earlier version tried that and silently deleted every
+    detection on a transparent tray with light-colored pills, since nothing
+    there contrasted against the border sample it used as "background").
+    Keeps only the largest cluster, and only if it's a clear majority —
+    otherwise there's no confident "this is the real group" signal, and
+    it's safer to filter nothing than to risk mass-rejecting real pills.
     """
     if len(detections) < 3:
         return detections
 
-    mask = _tray_mask(image)
-    if mask is None:
+    sizes = [max(d["_w"], d["_h"]) for d in detections if d.get("_w", 0) > 0 and d.get("_h", 0) > 0]
+    median_size = sorted(sizes)[len(sizes) // 2] if sizes else 20.0
+    # Generous multiple of pill size — real pills in one tray/pile are
+    # typically within a few pill-widths of a neighbor; background clutter
+    # tends to be much farther from the main group than that.
+    threshold = median_size * 6.0
+
+    n = len(detections)
+    parent = list(range(n))
+
+    def find(i):
+        while parent[i] != i:
+            parent[i] = parent[parent[i]]
+            i = parent[i]
+        return i
+
+    def union(i, j):
+        ri, rj = find(i), find(j)
+        if ri != rj:
+            parent[ri] = rj
+
+    for i in range(n):
+        for j in range(i + 1, n):
+            dx = detections[i]["x"] - detections[j]["x"]
+            dy = detections[i]["y"] - detections[j]["y"]
+            if (dx * dx + dy * dy) ** 0.5 < threshold:
+                union(i, j)
+
+    clusters: dict[int, list[int]] = {}
+    for i in range(n):
+        clusters.setdefault(find(i), []).append(i)
+
+    largest = max(clusters.values(), key=len)
+    if len(largest) < 0.6 * n:
+        # No dominant cluster — detections are too spread out to confidently
+        # call anything an "outlier". Don't filter.
         return detections
 
-    height, width = mask.shape
-    kept = []
-    for d in detections:
-        cx, cy = int(d["x"]), int(d["y"])
-        if 0 <= cx < width and 0 <= cy < height and mask[cy, cx] == 0:
-            continue
-        kept.append(d)
-    return kept
+    largest_set = set(largest)
+    return [d for idx, d in enumerate(detections) if idx in largest_set]
 
 
 def _filter_size_shape_outliers(detections: list[dict]) -> list[dict]:
