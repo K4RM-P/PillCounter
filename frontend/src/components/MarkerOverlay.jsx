@@ -1,5 +1,13 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { vibrate } from '../haptics'
+
+// Below this, a circle sized to the true pill would be too small to see or
+// tap reliably — floor the visual dot there (the tap target has its own,
+// larger floor below).
+const MIN_DOT_PX = 8
+// Manually-added markers and any detection missing a size fall back to this.
+const DEFAULT_DOT_PX = 14
+const MIN_HIT_TARGET_PX = 24
 
 // Renders an image with editable pill markers overlaid.
 // markers are stored in normalized (0-1) image coordinates so they stay
@@ -7,6 +15,22 @@ import { vibrate } from '../haptics'
 export default function MarkerOverlay({ imageUrl, markers, onAddMarker, onRemoveMarker, editable }) {
   const imgRef = useRef(null)
   const [zoomed, setZoomed] = useState(false)
+  // Marker `size` is normalized to the *original* image width (see
+  // counter.py) so it survives any downscaling/re-encoding — converting it
+  // to an on-screen circle diameter needs the image's actual rendered
+  // width, which changes with viewport size and the zoom toggle below.
+  const [renderedWidth, setRenderedWidth] = useState(0)
+
+  useEffect(() => {
+    const el = imgRef.current
+    if (!el) return
+    const observer = new ResizeObserver((entries) => {
+      const width = entries[0]?.contentRect.width
+      if (width) setRenderedWidth(width)
+    })
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
 
   function handleImageClick(e) {
     if (!editable || !onAddMarker) return
@@ -43,26 +67,40 @@ export default function MarkerOverlay({ imageUrl, markers, onAddMarker, onRemove
           transition: 'width 0.2s ease',
         }}
       />
-      {markers.map((marker, index) => (
-        <div
-          key={index}
-          className="marker-hit-target"
-          onClick={(e) => {
-            if (!editable) return
-            e.stopPropagation()
-            onRemoveMarker(index)
-            vibrate(8)
-          }}
-          title={editable ? markerTitle(marker) : undefined}
-          style={{
-            left: `${marker.x * 100}%`,
-            top: `${marker.y * 100}%`,
-            cursor: editable ? 'pointer' : 'default',
-          }}
-        >
-          <span className="marker-dot" style={{ background: markerColor(marker.confidence) }} />
-        </div>
-      ))}
+      {markers.map((marker, index) => {
+        const dotPx =
+          marker.size && renderedWidth
+            ? Math.max(MIN_DOT_PX, marker.size * renderedWidth)
+            : DEFAULT_DOT_PX
+        const hitPx = Math.max(MIN_HIT_TARGET_PX, dotPx)
+        return (
+          <div
+            key={index}
+            className="marker-hit-target"
+            onClick={(e) => {
+              if (!editable) return
+              e.stopPropagation()
+              onRemoveMarker(index)
+              vibrate(8)
+            }}
+            title={editable ? markerTitle(marker) : undefined}
+            style={{
+              left: `${marker.x * 100}%`,
+              top: `${marker.y * 100}%`,
+              width: hitPx,
+              height: hitPx,
+              marginLeft: -hitPx / 2,
+              marginTop: -hitPx / 2,
+              cursor: editable ? 'pointer' : 'default',
+            }}
+          >
+            <span
+              className="marker-dot"
+              style={{ width: dotPx, height: dotPx, background: markerColor(marker.confidence) }}
+            />
+          </div>
+        )
+      })}
     </div>
   )
 }

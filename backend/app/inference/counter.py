@@ -55,7 +55,22 @@ def count_pills(image: np.ndarray, weights_path: str | None = None) -> list[dict
     tray_filtered = _filter_outside_tray(image, deduped)
     size_filtered = _filter_size_shape_outliers(tray_filtered)
     color_filtered = _filter_color_outliers(image, size_filtered)
-    return [{"x": d["x"], "y": d["y"], "confidence": d["confidence"]} for d in color_filtered]
+    flagged_filtered = _filter_flagged_outliers(image, color_filtered)
+    return [
+        {
+            "x": d["x"],
+            "y": d["y"],
+            "confidence": d["confidence"],
+            # Larger of the box's two dimensions, normalized to image width
+            # so the frontend can size marker circles proportionally to
+            # actual pill size without needing to know rendered pixel
+            # dimensions — dividing by a single consistent axis (width)
+            # keeps circles round regardless of the displayed image's aspect
+            # ratio, unlike normalizing width/height separately would.
+            "size": max(d["_w"], d["_h"]) / width if d.get("_w", 0) > 0 else None,
+        }
+        for d in flagged_filtered
+    ]
 
 
 def _predict(model, image: np.ndarray, device: str, imgsz: int | None = None):
@@ -337,3 +352,72 @@ def _filter_color_outliers(image: np.ndarray, detections: list[dict]) -> list[di
             continue
         kept.append(d)
     return kept
+
+
+# Mirrors the frontend's own marker color bands (MarkerOverlay.jsx
+# markerColor()) — >=CONFIDENT is shown purple/"Confident", <FLAGGED is
+# shown red/"Flagged". Kept in sync so "flagged" means the same thing on
+# both sides.
+_CONFIDENT_THRESHOLD = 0.75
+_FLAGGED_THRESHOLD = 0.5
+
+
+def _filter_flagged_outliers(image: np.ndarray, detections: list[dict]) -> list[dict]:
+    """A flagged (low-confidence) detection that's ALSO a stark size, shape,
+    or color outlier compared to the tray's confident detections is very
+    likely tray hardware or a fluke, not a real pill worth a human's second
+    look — so it's dropped outright rather than left as a flagged marker.
+
+    This is deliberately separate from _filter_size_shape_outliers /
+    _filter_color_outliers above: those compare each detection against the
+    *whole* population and only engage with >=8 detections total, so a
+    small tray (a handful of pills) never gets outlier filtering at all.
+    This one instead measures flagged detections against just the confident
+    ones, which is reliable with as few as 3 confident reference pills —
+    and it only ever removes detections already flagged as low-confidence,
+    so a real, well-detected pill can never be silently deleted here.
+    """
+    confident = [d for d in detections if d["confidence"] >= _CONFIDENT_THRESHOLD]
+    flagged = [d for d in detections if d["confidence"] < _FLAGGED_THRESHOLD]
+    if len(confident) < 3 or not flagged:
+        return detections
+
+    sized = [d for d in confident if d.get("_w", 0) > 0 and d.get("_h", 0) > 0]
+    diagonals = sorted(max(d["_w"], d["_h"]) for d in sized) if sized else []
+    median_diag = diagonals[len(diagonals) // 2] if diagonals else None
+    aspects = sorted(max(d["_w"], d["_h"]) / max(1e-6, min(d["_w"], d["_h"])) for d in sized) if sized else []
+    median_aspect = aspects[len(aspects) // 2] if aspects else None
+
+    colors = []
+    for d in confident:
+        d.setdefault("_color", _sample_patch_color(image, d))
+        if d["_color"] is not None:
+            colors.append(d["_color"])
+    median_color = mad = None
+    if len(colors) >= 3:
+        colors_arr = np.array(colors)
+        median_color = np.median(colors_arr, axis=0)
+        mad = np.maximum(np.median(np.abs(colors_arr - median_color), axis=0) * 1.4826, 8.0) + 1e-6
+
+    dropped_ids = set()
+    for d in flagged:
+        is_outlier = False
+        if median_diag is not None and d.get("_w", 0) > 0 and d.get("_h", 0) > 0:
+            diag = max(d["_w"], d["_h"])
+            aspect = max(d["_w"], d["_h"]) / max(1e-6, min(d["_w"], d["_h"]))
+            if diag < median_diag * 0.4 or diag > median_diag * 2.5:
+                is_outlier = True
+            if median_aspect is not None and aspect > median_aspect * 2.5 + 0.5:
+                is_outlier = True
+        if median_color is not None:
+            color = d.get("_color")
+            if color is None:
+                color = _sample_patch_color(image, d)
+            if color is not None:
+                z_score = float(np.sqrt(np.sum(((color - median_color) / mad) ** 2)))
+                if z_score > 5.0:
+                    is_outlier = True
+        if is_outlier:
+            dropped_ids.add(id(d))
+
+    return [d for d in detections if id(d) not in dropped_ids]

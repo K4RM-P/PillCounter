@@ -63,6 +63,7 @@ export default function CapturePage() {
         x: d.x / result.width,
         y: d.y / result.height,
         confidence: d.confidence,
+        size: d.size ?? undefined,
       }))
 
       navigate('/result', {

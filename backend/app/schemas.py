@@ -17,6 +17,11 @@ class Detection(BaseModel):
     x: float
     y: float
     confidence: float
+    # Larger box dimension normalized to image width (see counter.py) — lets
+    # the frontend render marker circles sized proportionally to actual
+    # pill size. Optional/None for manually-added markers, which have no
+    # detected box to measure.
+    size: Optional[float] = None
 
 
 class CountResponse(BaseModel):
