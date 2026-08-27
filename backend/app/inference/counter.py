@@ -311,7 +311,15 @@ def _filter_color_outliers(image: np.ndarray, detections: list[dict]) -> list[di
     # few sigma" of their own contamination. MAD (scaled by 1.4826 to match
     # stddev under a normal distribution) stays robust with a handful of
     # outliers in an otherwise tightly-clustered population of pill colors.
-    mad = np.median(np.abs(colors_arr - median_color), axis=0) * 1.4826 + 1e-6
+    # Floored at 8 per channel: a large batch of near-identical pills (e.g.
+    # 150 of the same tablet under consistent lighting) can have a MAD of
+    # just 2-4, which would turn ordinary lighting/glare variation across
+    # the tray (one pill nearer an edge, catching more glare) into a huge
+    # z-score and reject a real pill — a bigger, more homogeneous batch
+    # should make this filter more forgiving of natural variation, not more
+    # trigger-happy. The floor only matters when the batch is already this
+    # tight; it's a no-op whenever real per-channel spread exceeds it.
+    mad = np.maximum(np.median(np.abs(colors_arr - median_color), axis=0) * 1.4826, 8.0) + 1e-6
 
     kept = []
     for d in detections:
