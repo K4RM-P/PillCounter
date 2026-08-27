@@ -63,6 +63,22 @@ export async function checkHealth() {
   return res.json()
 }
 
+// Render's free tier sleeps the backend after ~15 min idle, and the GitHub
+// Actions keep-alive cron is unreliable on its own — GitHub silently delays
+// or drops scheduled runs on low-traffic repos, sometimes by hours. Ping the
+// health endpoint the moment the app opens (so a cold start happens while
+// the user is still framing a photo, not during the upload) and keep
+// re-pinging periodically for as long as the tab stays open, as a
+// client-side backstop that doesn't depend on GitHub's scheduler firing.
+export function warmBackend() {
+  const ping = () => {
+    fetchWithTimeout(`${API_BASE_URL}/health`, {}, 60000).catch(() => {})
+  }
+  ping()
+  const interval = setInterval(ping, 3 * 60 * 1000)
+  return () => clearInterval(interval)
+}
+
 export async function login(username, password) {
   const res = await fetchWithTimeout(`${API_BASE_URL}/api/login`, {
     method: 'POST',

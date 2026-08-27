@@ -11,7 +11,7 @@ import NetworkBanner from './components/NetworkBanner'
 import { clearToken, isAuthenticated } from './auth'
 import { applyTheme, getTheme, toggleTheme } from './theme'
 import { flushQueue, queueLength } from './offlineQueue'
-import { saveCount, uploadForCount } from './api'
+import { saveCount, uploadForCount, warmBackend } from './api'
 
 function App() {
   const navigate = useNavigate()
@@ -25,6 +25,8 @@ function App() {
   useEffect(() => {
     applyTheme(getTheme())
   }, [])
+
+  useEffect(() => warmBackend(), [])
 
   useEffect(() => {
     async function tryFlush() {
