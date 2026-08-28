@@ -8,8 +8,16 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends libgl1 libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/*
 
+# CPU-only torch build: the default PyPI torch pulls in NVIDIA CUDA runtime
+# libraries (cublas/cudnn/nccl/etc, several hundred MB) that get mapped into
+# memory at import even on this GPU-less container, which alone was enough
+# to blow past Render free tier's 512MB limit before a single request came
+# in. Installed first so ultralytics' torch dependency is already satisfied
+# and pip doesn't pull the CUDA build in afterward.
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir torch==2.8.0 torchvision==0.23.0 \
+    --index-url https://download.pytorch.org/whl/cpu \
+    && pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
