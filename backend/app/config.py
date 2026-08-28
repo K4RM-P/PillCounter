@@ -85,6 +85,12 @@ class Settings:
     # Inference device: "auto" picks MPS/CUDA if available, else CPU.
     INFERENCE_DEVICE: str = os.getenv("INFERENCE_DEVICE", "auto")
 
+    # torch intra-op thread count; 0 leaves torch's default (one thread per
+    # host core). Defaults to 1 because more threads measured strictly
+    # slower on this workload even on unconstrained hardware, and much
+    # worse inside a fractional-CPU container. See model._configure_threads.
+    TORCH_NUM_THREADS: int = int(os.getenv("TORCH_NUM_THREADS", "1"))
+
     # get_model() lru_cache size — each cached entry is a full YOLO model
     # resident in memory. Free-tier hosting has a hard 512MB ceiling, and a
     # client flipping between v2/v3 (or ensemble touching both) can easily

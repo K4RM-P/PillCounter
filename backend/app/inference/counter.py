@@ -244,6 +244,24 @@ def _tile_starts(dim: int, tile: int, stride: int) -> list[int]:
     return starts
 
 
+def _tile_imgsz(tile: int, requested: int | None = None) -> int:
+    """Model input size for a `tile`-pixel crop, never larger than the crop.
+
+    Feeding a 595px tile to the model at imgsz=960 upscales it 1.6x, which
+    costs ~2x the compute (measured: 50ms/tile vs 25ms) while adding no
+    information — upscaling can't recover detail the crop doesn't have.
+    Because tile size already scales with the source photo's resolution
+    (see _tiled_detections), a fixed INFERENCE_IMGSZ is upscaling by a
+    different, arbitrary factor at every input resolution; deriving it from
+    the tile keeps the model at native scale regardless. Rounded up to a
+    multiple of 32 (the model's stride) and still capped by the configured
+    imgsz, so this only ever *lowers* compute, never raises it.
+    """
+    ceiling = requested or settings.INFERENCE_IMGSZ
+    native = ((tile + 31) // 32) * 32
+    return max(32, min(ceiling, native))
+
+
 def _tiled_detections(model, image: np.ndarray, device: str, imgsz: int | None = None) -> list[dict]:
     height, width = image.shape[:2]
     # Scale tile size proportionally to the actual photo's resolution — a
@@ -270,7 +288,7 @@ def _tiled_detections(model, image: np.ndarray, device: str, imgsz: int | None =
             pad_h, pad_w = tile - crop.shape[0], tile - crop.shape[1]
             if pad_h > 0 or pad_w > 0:
                 crop = cv2.copyMakeBorder(crop, 0, pad_h, 0, pad_w, cv2.BORDER_REFLECT_101)
-            result = _predict(model, crop, device, imgsz=imgsz or settings.INFERENCE_IMGSZ)
+            result = _predict(model, crop, device, imgsz=_tile_imgsz(tile, imgsz))
             detections.extend(_boxes_from_result(result, offset_x=x, offset_y=y))
     return detections
 

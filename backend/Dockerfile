@@ -21,6 +21,14 @@ RUN pip install --no-cache-dir torch==2.8.0 torchvision==0.23.0 \
 
 COPY . .
 
+# OpenMP/MKL read these at library load time, before any Python code (and
+# so before app.inference.model's torch.set_num_threads) can intervene —
+# without them the OMP pool is already sized to the host's core count.
+# Matches TORCH_NUM_THREADS; see model._configure_threads for why 1.
+ENV OMP_NUM_THREADS=1 \
+    MKL_NUM_THREADS=1 \
+    OPENBLAS_NUM_THREADS=1
+
 EXPOSE 8000
 
 # No --reload: that's a dev-only flag (spawns a file-watcher process) that
