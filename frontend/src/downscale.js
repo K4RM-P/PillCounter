@@ -4,9 +4,15 @@
 // counter's tiled inference needs that detail: dropping to 1600px
 // measurably loses small/overlapping pills in dense trays (verified: a
 // 13-pill tray photo counted 13/13 at native res vs 11/13 once downscaled
-// to 1600px). Raised from 4096 for very dense (300-400 pill) photos, where
-// even more raw resolution per pill keeps paying off.
-const MAX_DIMENSION = 6000
+// to 1600px).
+//
+// Matched to the backend's MAX_IMAGE_DIMENSION (see render.yaml): the
+// server resizes anything larger down to that before inference, so pixels
+// above this bound are decoded, re-encoded and uploaded only to be thrown
+// away — on cellular that inflates the upload several-fold and was a real
+// contributor to requests appearing to "not reach the server". Keep this
+// in sync if the backend's cap is raised.
+const MAX_DIMENSION = 3000
 
 function isHeic(file) {
   const type = (file.type || '').toLowerCase()
