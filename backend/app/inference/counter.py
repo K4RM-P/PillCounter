@@ -191,6 +191,13 @@ def _detect_raw(model, detection_input: np.ndarray, device: str, height: int, wi
     idempotent here, so it must run exactly once.
     """
     scales = _inference_scales()
+    # A statically-shaped export runs every scale at its one input size, so
+    # multi-scale fusion would repeat identical passes — same model, same
+    # input, same output — and pay full inference cost per duplicate. Their
+    # results would merge back together in dedup anyway, so collapse to a
+    # single pass instead of doing the work twice.
+    if getattr(model, "pillcount_fixed_imgsz", None) is not None:
+        scales = scales[:1]
     detections: list[dict] = []
     use_tiling = settings.TILE_INFERENCE and max(height, width) > settings.TILE_MIN_IMAGE_SIZE
 
@@ -255,9 +262,16 @@ def _dense_recrop_detections(
 
 def _predict(model, image: np.ndarray, device: str, imgsz: int | None = None):
     enforce_threads()
+    # An ONNX export is built for one static input size; onnxruntime rejects
+    # anything else outright. Overriding here — the single point every
+    # detection pass (tiled, full-image, recrop, multi-scale) funnels
+    # through — means no caller has to know which engine is loaded.
+    # Ultralytics letterboxes each tile up to this size, so a tile of any
+    # dimension still works.
+    fixed = getattr(model, "pillcount_fixed_imgsz", None)
     return model.predict(
         image,
-        imgsz=imgsz or settings.INFERENCE_IMGSZ,
+        imgsz=fixed or imgsz or settings.INFERENCE_IMGSZ,
         iou=settings.NMS_IOU_THRESHOLD,
         max_det=settings.MAX_DETECTIONS,
         augment=settings.TTA_AUGMENT,

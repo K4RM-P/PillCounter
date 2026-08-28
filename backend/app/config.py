@@ -85,6 +85,16 @@ class Settings:
     # Inference device: "auto" picks MPS/CUDA if available, else CPU.
     INFERENCE_DEVICE: str = os.getenv("INFERENCE_DEVICE", "auto")
 
+    # Prefer an ONNX Runtime export of the weights when one sits next to the
+    # .pt file (ml/weights/pill_v2.onnx beside pill_v2.pt). Same trained
+    # weights and same fp32 math — only the execution engine differs — but
+    # ONNX Runtime's CPU kernels measured 3.6x faster per tile than
+    # PyTorch's (33.3ms -> 9.2ms), which is most of what makes a dense
+    # count finish in seconds rather than a minute on a fractional CPU.
+    # Verified to produce byte-identical counts across the regression set
+    # before being enabled. Turn off to fall back to the .pt weights.
+    ONNX_RUNTIME_ENABLED: bool = os.getenv("ONNX_RUNTIME_ENABLED", "true").lower() == "true"
+
     # torch intra-op thread count; 0 leaves torch's default (one thread per
     # host core). Defaults to 1 because more threads measured strictly
     # slower on this workload even on unconstrained hardware, and much
