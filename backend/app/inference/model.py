@@ -5,6 +5,7 @@ counter.py or any calling code.
 
 from __future__ import annotations
 
+import re
 from functools import lru_cache
 from pathlib import Path
 
@@ -114,8 +115,8 @@ def _resolve_weights(path: str) -> str:
     return onnx_path if Path(onnx_path).exists() else path
 
 
-def _onnx_input_size(path: str) -> int | None:
-    """The static square input size an ONNX export was built for.
+def _static_imgsz(path: str) -> int | None:
+    """The fixed square input size an exported model was built for.
 
     Read from the file rather than configured, so the pipeline's inference
     size can never silently drift out of sync with what the model actually
@@ -123,16 +124,37 @@ def _onnx_input_size(path: str) -> int | None:
     regression. Returns None for a dynamic-axis export, which needs no
     pinning.
     """
-    import onnxruntime
+    if path.endswith(".onnx"):
+        import onnxruntime
 
-    session = onnxruntime.InferenceSession(path, providers=["CPUExecutionProvider"])
-    try:
-        shape = session.get_inputs()[0].shape  # [batch, 3, H, W]
-        height, width = shape[2], shape[3]
-    finally:
-        del session
-    if isinstance(height, int) and isinstance(width, int) and height == width:
-        return height
+        session = onnxruntime.InferenceSession(path, providers=["CPUExecutionProvider"])
+        try:
+            shape = session.get_inputs()[0].shape  # [batch, 3, H, W]
+            height, width = shape[2], shape[3]
+        finally:
+            del session
+        if isinstance(height, int) and isinstance(width, int) and height == width:
+            return height
+        return None
+
+    # OpenVINO exports record the size ultralytics built them at in the
+    # metadata written alongside the IR files.
+    meta = Path(path) / "metadata.yaml"
+    if not meta.exists():
+        return None
+    lines = meta.read_text().splitlines()
+    for i, line in enumerate(lines):
+        if not line.strip().startswith("imgsz:"):
+            continue
+        # Either "imgsz: [608, 608]" inline or a following "- 608" block list.
+        sizes = [int(n) for n in re.findall(r"\d+", line)]
+        for follow in lines[i + 1:]:
+            if not follow.strip().startswith("- "):
+                break
+            sizes += [int(n) for n in re.findall(r"\d+", follow)]
+        if sizes and len(set(sizes)) == 1:
+            return sizes[0]
+        return None
     return None
 
 
@@ -145,7 +167,7 @@ def get_model(weights_path: str | None = None) -> YOLO:
     is_onnx = not str(path).endswith(".pt")
     # Must precede YOLO(), which reads the provider list when it builds its
     # backend — patching afterwards would be too late for the session.
-    if is_onnx:
+    if path.endswith(".onnx"):
         _restrict_onnx_to_cpu()
     model = YOLO(path)
     # Exported runtimes (ONNX) own their own execution provider and reject
@@ -153,7 +175,7 @@ def get_model(weights_path: str | None = None) -> YOLO:
     # also exported at one static input size, so record it: every predict
     # call must use exactly that size or onnxruntime rejects the input.
     if is_onnx:
-        model.pillcount_fixed_imgsz = _onnx_input_size(path)
+        model.pillcount_fixed_imgsz = _static_imgsz(path)
         return model
     # Warm up on the actual inference device so the first real request isn't
     # slowed by lazy weight transfer/kernel compilation.

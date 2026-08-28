@@ -150,8 +150,23 @@ def bench(tiles: int = 6):
         if Path(f).exists():
             info[f] = Path(f).read_text().strip()
 
+    try:
+        cpuinfo = Path("/proc/cpuinfo").read_text()
+        for line in cpuinfo.splitlines():
+            if line.startswith("model name"):
+                info["cpu_model"] = line.split(":", 1)[1].strip()
+                break
+        flags = next((l for l in cpuinfo.splitlines() if l.startswith("flags")), "")
+        info["simd"] = [f for f in ("avx2", "avx512f", "avx512_vnni", "amx_int8") if f in flags]
+    except Exception:
+        pass
+
     tile = np.random.randint(0, 255, (595, 595, 3), dtype=np.uint8)
-    for label, weights in (("torch", "ml/weights/pill_v2.pt"), ("onnx", "ml/weights/pill_v2.onnx")):
+    for label, weights in (
+        ("torch", "ml/weights/pill_v2.pt"),
+        ("onnx", "ml/weights/pill_v2.onnx"),
+        ("openvino", "ml/weights/pill_v2_openvino_model"),
+    ):
         if not Path(weights).exists():
             continue
         try:
