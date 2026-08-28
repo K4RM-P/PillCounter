@@ -347,7 +347,21 @@ def _dedup(detections: list[dict]) -> list[dict]:
     """Merges detections whose centers are closer than a fraction of the
     median pill size — handles the same pill being detected in two
     overlapping tiles, at two different scales, in both the tiled and
-    full-image pass, or (rarely) twice within one pass."""
+    full-image pass, or (rarely) twice within one pass.
+
+    Tried building the threshold from the short axis (min(w, h)) instead of
+    the long one, reasoning that two touching capsules lying side by side
+    have centers only about one *width* apart, well under a long-axis-based
+    threshold. Measured a real fix on that one dense capsule photo
+    (85 -> 157) — but re-run across the full regression set it overcounted
+    broadly (the known oval pile 49 -> 72, the 13-pill reference tray
+    16-17), because a tighter threshold also stops merging genuine
+    same-pill duplicates, which have more box jitter for elongated shapes.
+    Reverted; this is the same tension three earlier, differently-shaped
+    attempts (lower fraction, IoU matching, shape-ratio matching) hit —
+    the touching-capsule case needs a smarter per-pair signal than any
+    single global threshold, not shipped yet.
+    """
     if not detections:
         return detections
 
