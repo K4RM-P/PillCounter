@@ -1,17 +1,17 @@
 import { useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { uploadForCount } from '../api'
 import { downscaleImage } from '../downscale'
 import { enqueuePhoto, isNetworkError } from '../offlineQueue'
 import CameraCapture from '../components/CameraCapture'
 import { showToast } from '../toast'
-import { vibrate } from '../haptics'
 import { setUploading } from '../uploadState'
 
 // Remembered across visits so an A/B comparison session doesn't reset the
-// toggle on every photo.
+// toggle on every photo. Written by the Settings page.
 const MODEL_VERSION_KEY = 'pillcount_model_version'
-const COACH_MARK_KEY = 'pillcount_seen_capture_tip'
+
+const MODEL_LABELS = { v2: 'Model v2', v3: 'Model v3', ensemble: 'Ensemble' }
 
 const PROCESSING_STAGES = [
   { afterMs: 0, text: 'Preparing photo...' },
@@ -25,23 +25,11 @@ export default function CapturePage() {
   const [stage, setStage] = useState(PROCESSING_STAGES[0].text)
   const [error, setError] = useState(null)
   const [cameraUnavailable, setCameraUnavailable] = useState(false)
-  const [modelVersion, setModelVersion] = useState(
+  const [modelVersion] = useState(
     () => localStorage.getItem(MODEL_VERSION_KEY) || 'v2',
   )
-  const [showTip, setShowTip] = useState(() => !localStorage.getItem(COACH_MARK_KEY))
   const navigate = useNavigate()
   const lastFileRef = useRef(null)
-
-  function dismissTip() {
-    setShowTip(false)
-    localStorage.setItem(COACH_MARK_KEY, '1')
-  }
-
-  function selectModelVersion(version) {
-    vibrate(8)
-    setModelVersion(version)
-    localStorage.setItem(MODEL_VERSION_KEY, version)
-  }
 
   async function handleFile(file) {
     if (!file) return
@@ -99,44 +87,14 @@ export default function CapturePage() {
 
   return (
     <div className="page">
-      <div>
-        <h2>Count Pills</h2>
-        <p className="hint">Spread pills out on a flat, contrasting surface so they don't overlap.</p>
-      </div>
-
-      {showTip && (
-        <div className="badge badge-warn badge-warn-icon" style={{ alignSelf: 'stretch', justifyContent: 'space-between' }}>
-          <span>Tip: tap directly on the shutter to capture, then tap the photo to add or remove pill markers.</span>
-          <button type="button" className="btn btn-icon" onClick={dismissTip} aria-label="Dismiss tip" style={{ padding: '2px 8px' }}>
-            Got it
-          </button>
-        </div>
-      )}
-
-      <div className="segmented" role="radiogroup" aria-label="Model version" style={{ alignSelf: 'stretch' }}>
-        {[
-          { key: 'v2', label: 'Model v2' },
-          { key: 'v3', label: 'Model v3' },
-          { key: 'ensemble', label: 'Ensemble' },
-        ].map(({ key, label }) => (
-          <button
-            key={key}
-            type="button"
-            role="radio"
-            aria-checked={modelVersion === key}
-            className={modelVersion === key ? 'active' : ''}
-            onClick={() => selectModelVersion(key)}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-      {modelVersion === 'ensemble' && (
-        <p className="hint">
-          Runs both models and combines what either found — slower, but a pill only one model catches still gets
-          counted, flagged for a quick look instead of silently missed.
+      <div className="row" style={{ justifyContent: 'space-between', alignItems: 'baseline' }}>
+        <p className="hint capture-hint-line">
+          <strong style={{ color: 'var(--text-h)' }}>Count Pills</strong> — spread them out so they don't overlap.
         </p>
-      )}
+        <Link to="/settings" className="model-status-link">
+          {MODEL_LABELS[modelVersion]} · Change
+        </Link>
+      </div>
 
       {error && (
         <div className="alert-error">

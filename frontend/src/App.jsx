@@ -1,14 +1,15 @@
 import { useEffect, useState } from 'react'
-import { Link, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
+import { Link, Route, Routes, useLocation } from 'react-router-dom'
 import CapturePage from './pages/CapturePage'
 import ResultPage from './pages/ResultPage'
 import HistoryPage from './pages/HistoryPage'
 import HistoryDetailPage from './pages/HistoryDetailPage'
+import SettingsPage from './pages/SettingsPage'
 import LoginPage from './pages/LoginPage'
 import RequireAuth from './components/RequireAuth'
 import ToastHost from './components/ToastHost'
 import NetworkBanner from './components/NetworkBanner'
-import { clearToken, isAuthenticated } from './auth'
+import { isAuthenticated } from './auth'
 import { applyTheme, getTheme, toggleTheme } from './theme'
 import { flushQueue, queueLength } from './offlineQueue'
 import { saveCount, uploadForCount, warmBackend } from './api'
@@ -16,7 +17,6 @@ import { isUploading, subscribeUploading } from './uploadState'
 import { showToast } from './toast'
 
 function App() {
-  const navigate = useNavigate()
   const location = useLocation()
   const [pending, setPending] = useState(queueLength())
   const [uploading, setUploadingState] = useState(isUploading())
@@ -50,11 +50,6 @@ function App() {
     return () => window.removeEventListener('online', tryFlush)
   }, [])
 
-  function handleLogout() {
-    clearToken()
-    navigate('/login')
-  }
-
   function handleToggleTheme() {
     setDark(toggleTheme() === 'dark')
   }
@@ -71,9 +66,9 @@ function App() {
             <button className="btn btn-icon" onClick={handleToggleTheme} title="Toggle dark mode" aria-label="Toggle dark mode">
               {dark ? <SunIcon /> : <MoonIcon />}
             </button>
-            <button className="btn btn-icon" onClick={handleLogout} title="Log out" aria-label="Log out">
-              <LogoutIcon />
-            </button>
+            <Link className="btn btn-icon" to="/settings" title="Settings" aria-label="Settings">
+              <SettingsIcon />
+            </Link>
           </div>
         </div>
       )}
@@ -112,6 +107,14 @@ function App() {
             element={
               <RequireAuth>
                 <HistoryDetailPage />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/settings"
+            element={
+              <RequireAuth>
+                <SettingsPage />
               </RequireAuth>
             }
           />
@@ -168,12 +171,11 @@ function MoonIcon() {
   )
 }
 
-function LogoutIcon() {
+function SettingsIcon() {
   return (
-    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-      <polyline points="16 17 21 12 16 7" />
-      <line x1="21" y1="12" x2="9" y2="12" />
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="3" />
+      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z" />
     </svg>
   )
 }
