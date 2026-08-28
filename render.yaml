@@ -50,12 +50,6 @@ services:
       # and inference to a single worker at a time bounds peak memory to
       # roughly one model + one request's buffers. Remove these overrides
       # once off the free plan.
-      # Held off until measured on this hardware: an ONNX build that was
-      # 3.6x faster on a dev laptop turned out to be using CoreML, which
-      # this box doesn't have, and ONNX's plain CPU kernels measured
-      # *slower* than PyTorch there. See /api/_bench.
-      - key: ONNX_RUNTIME_ENABLED
-        value: "false"
       - key: MODEL_CACHE_SIZE
         value: "1"
       - key: MAX_IMAGE_DIMENSION

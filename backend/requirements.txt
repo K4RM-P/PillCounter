@@ -5,15 +5,3 @@ sqlalchemy==2.0.36
 opencv-python-headless==4.10.0.84
 numpy==1.26.4
 ultralytics==8.3.49
-# ONNX Runtime executes the exported weights ~3.6x faster per tile than
-# PyTorch on CPU (measured 33.3ms -> 9.2ms), with identical counts.
-# See app/inference/model.py:_resolve_weights.
-onnxruntime==1.19.2
-# Pinned and preinstalled so ultralytics' AutoUpdate never pip-installs it
-# mid-request: in production that cost 68s of request time and pulled numpy
-# 2.4.6 over the 1.26.4 pin above, which the rest of the stack is built
-# against. YOLO_AUTOINSTALL=false in the Dockerfile blocks it too.
-onnx==1.16.2
-# OpenVINO is evaluated against PyTorch on the deployed CPU via /api/_bench;
-# see app/inference/model.py:_resolve_weights for how an export is picked up.
-openvino==2024.4.0

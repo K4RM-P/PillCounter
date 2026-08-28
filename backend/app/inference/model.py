@@ -5,9 +5,7 @@ counter.py or any calling code.
 
 from __future__ import annotations
 
-import re
 from functools import lru_cache
-from pathlib import Path
 
 import numpy as np
 import torch
@@ -79,105 +77,12 @@ def resolve_device() -> str:
     return "cpu"
 
 
-def _restrict_onnx_to_cpu() -> None:
-    """Force ONNX Runtime to use its plain CPU execution provider.
-
-    ultralytics hands onnxruntime *every* available provider and keeps
-    whichever sorts first (nn/autobackend.py: it only ever filters out
-    CUDA). The stock onnxruntime wheel advertises AzureExecutionProvider,
-    which sorts ahead of CPU — so inference silently bound to it and a
-    dense count that should take ~13s took 223s in production. Narrowing
-    the advertised list is the least invasive way to pin the choice, since
-    the provider list is read inside ultralytics rather than passed in.
-    """
-    import onnxruntime
-
-    if getattr(onnxruntime, "_pillcount_cpu_only", False):
-        return
-    available = onnxruntime.get_available_providers
-    onnxruntime.get_available_providers = lambda: [
-        p for p in available() if p == "CPUExecutionProvider"
-    ] or ["CPUExecutionProvider"]
-    onnxruntime._pillcount_cpu_only = True
-
-
-def _resolve_weights(path: str) -> str:
-    """Swap a .pt path for its ONNX export when one exists.
-
-    Keeps the ONNX build an infrastructure detail: callers (and the
-    frontend's model-version picker) keep naming pill_v2.pt / pill_v3.pt,
-    and this transparently runs the faster engine when that export has been
-    checked in. Falls back silently to the .pt if the export is missing, so
-    a missing/failed export degrades to the old speed rather than an error.
-    """
-    if not settings.ONNX_RUNTIME_ENABLED or not path.endswith(".pt"):
-        return path
-    onnx_path = path[: -len(".pt")] + ".onnx"
-    return onnx_path if Path(onnx_path).exists() else path
-
-
-def _static_imgsz(path: str) -> int | None:
-    """The fixed square input size an exported model was built for.
-
-    Read from the file rather than configured, so the pipeline's inference
-    size can never silently drift out of sync with what the model actually
-    accepts — a mismatch is a hard onnxruntime error, not a quiet accuracy
-    regression. Returns None for a dynamic-axis export, which needs no
-    pinning.
-    """
-    if path.endswith(".onnx"):
-        import onnxruntime
-
-        session = onnxruntime.InferenceSession(path, providers=["CPUExecutionProvider"])
-        try:
-            shape = session.get_inputs()[0].shape  # [batch, 3, H, W]
-            height, width = shape[2], shape[3]
-        finally:
-            del session
-        if isinstance(height, int) and isinstance(width, int) and height == width:
-            return height
-        return None
-
-    # OpenVINO exports record the size ultralytics built them at in the
-    # metadata written alongside the IR files.
-    meta = Path(path) / "metadata.yaml"
-    if not meta.exists():
-        return None
-    lines = meta.read_text().splitlines()
-    for i, line in enumerate(lines):
-        if not line.strip().startswith("imgsz:"):
-            continue
-        # Either "imgsz: [608, 608]" inline or a following "- 608" block list.
-        sizes = [int(n) for n in re.findall(r"\d+", line)]
-        for follow in lines[i + 1:]:
-            if not follow.strip().startswith("- "):
-                break
-            sizes += [int(n) for n in re.findall(r"\d+", follow)]
-        if sizes and len(set(sizes)) == 1:
-            return sizes[0]
-        return None
-    return None
-
-
 @lru_cache(maxsize=settings.MODEL_CACHE_SIZE)
 def get_model(weights_path: str | None = None) -> YOLO:
     """Cached per weights path — lets multiple model versions (e.g. for A/B
     testing candidate weights against the production default) be loaded and
     reused within the same process instead of reloading from disk per request."""
-    path = _resolve_weights(weights_path or settings.MODEL_WEIGHTS_PATH)
-    is_onnx = not str(path).endswith(".pt")
-    # Must precede YOLO(), which reads the provider list when it builds its
-    # backend — patching afterwards would be too late for the session.
-    if path.endswith(".onnx"):
-        _restrict_onnx_to_cpu()
-    model = YOLO(path)
-    # Exported runtimes (ONNX) own their own execution provider and reject
-    # .to() — device placement only applies to the PyTorch format. They are
-    # also exported at one static input size, so record it: every predict
-    # call must use exactly that size or onnxruntime rejects the input.
-    if is_onnx:
-        model.pillcount_fixed_imgsz = _static_imgsz(path)
-        return model
+    model = YOLO(weights_path or settings.MODEL_WEIGHTS_PATH)
     # Warm up on the actual inference device so the first real request isn't
     # slowed by lazy weight transfer/kernel compilation.
     model.to(resolve_device())
