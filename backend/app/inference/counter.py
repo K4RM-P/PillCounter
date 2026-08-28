@@ -25,11 +25,19 @@ internal accuracy improvements.
 
 from __future__ import annotations
 
+import logging
+import time
+
 import cv2
 import numpy as np
+import torch
 
 from app.config import settings
-from app.inference.model import get_model, resolve_device
+from app.inference.model import enforce_threads, get_model, resolve_device
+
+# uvicorn only configures its own loggers, so a bare __name__ logger
+# would be dropped in production; reuse uvicorn's so this reaches Render.
+logger = logging.getLogger("uvicorn.error")
 
 # Reference max-dimension (pixels) that TILE_SIZE/TILE_OVERLAP were tuned
 # against — see _tiled_detections.
@@ -41,6 +49,39 @@ TILE_SIZE_REFERENCE_DIM = 4032
 # both sides.
 _CONFIDENT_THRESHOLD = 0.75
 _FLAGGED_THRESHOLD = 0.5
+
+
+class _StageTimer:
+    """Per-stage wall-clock timing, logged once per count.
+
+    Production counts were running ~100x slower than the same photo
+    locally, and narrowing that down from the outside (total request time
+    only) was guesswork — this reports where the time actually goes on the
+    deployed hardware.
+    """
+
+    def __init__(self) -> None:
+        self._start = time.perf_counter()
+        self._last = self._start
+        self._stages: list[str] = []
+
+    def mark(self, name: str) -> None:
+        now = time.perf_counter()
+        self._stages.append(f"{name}={now - self._last:.1f}s")
+        self._last = now
+
+    def report(self, suffix: str = "") -> None:
+        total = time.perf_counter() - self._start
+        logger.info(
+            "count_pills total=%.1fs %s threads=%d tiles=%d %s",
+            total, " ".join(self._stages), torch.get_num_threads(), _TILE_COUNT[0], suffix,
+        )
+
+
+# Tiles inferred during the most recent detection pass — plain module state
+# rather than threaded through every call signature, since it exists only
+# for the timing log above and INFERENCE_MAX_WORKERS serializes counts.
+_TILE_COUNT = [0]
 
 
 def _enhance_contrast(image: np.ndarray) -> np.ndarray:
@@ -66,9 +107,11 @@ def count_pills(image: np.ndarray, weights_path: str | None = None, ensemble: bo
     frontend can surface disagreement as a review signal without it ever
     affecting whether something gets counted.
     """
+    stage = _StageTimer()
     device = resolve_device()
     height, width = image.shape[:2]
     detection_input = _enhance_contrast(image) if settings.CONTRAST_ENHANCE else image
+    stage.mark("contrast")
 
     if ensemble:
         raw_detections: list[dict] = []
@@ -79,9 +122,11 @@ def count_pills(image: np.ndarray, weights_path: str | None = None, ensemble: bo
                 raw_detections.append(d)
     else:
         model = get_model(weights_path)
+        stage.mark("model_load")
         raw_detections = _detect_raw(model, detection_input, device, height, width)
         for d in raw_detections:
             d.setdefault("_sources", set())
+    stage.mark("detect")
 
     if settings.DENSE_RECROP_ENABLED and len(raw_detections) >= settings.DENSE_RECROP_MIN_DETECTIONS:
         recrop_model = get_model(weights_path) if not ensemble else get_model(settings.MODEL_WEIGHTS_PATH)
@@ -95,6 +140,8 @@ def count_pills(image: np.ndarray, weights_path: str | None = None, ensemble: bo
     size_filtered = _filter_size_shape_outliers(tray_filtered)
     color_filtered = _filter_color_outliers(image, size_filtered)
     flagged_filtered = _filter_flagged_outliers(image, color_filtered)
+    stage.mark("filters")
+    stage.report(f"{width}x{height} raw={len(raw_detections)} final={len(flagged_filtered)}")
     return [
         {
             "x": d["x"],
@@ -207,6 +254,7 @@ def _dense_recrop_detections(
 
 
 def _predict(model, image: np.ndarray, device: str, imgsz: int | None = None):
+    enforce_threads()
     return model.predict(
         image,
         imgsz=imgsz or settings.INFERENCE_IMGSZ,
@@ -275,6 +323,7 @@ def _tiled_detections(model, image: np.ndarray, device: str, imgsz: int | None =
     stride = max(1, int(tile * (1 - settings.TILE_OVERLAP)))
 
     detections = []
+    _TILE_COUNT[0] = 0
     for y in _tile_starts(height, tile, stride):
         for x in _tile_starts(width, tile, stride):
             y2, x2 = min(y + tile, height), min(x + tile, width)
@@ -288,6 +337,7 @@ def _tiled_detections(model, image: np.ndarray, device: str, imgsz: int | None =
             pad_h, pad_w = tile - crop.shape[0], tile - crop.shape[1]
             if pad_h > 0 or pad_w > 0:
                 crop = cv2.copyMakeBorder(crop, 0, pad_h, 0, pad_w, cv2.BORDER_REFLECT_101)
+            _TILE_COUNT[0] += 1
             result = _predict(model, crop, device, imgsz=_tile_imgsz(tile, imgsz))
             detections.extend(_boxes_from_result(result, offset_x=x, offset_y=y))
     return detections

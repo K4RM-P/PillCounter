@@ -9,6 +9,8 @@ from functools import lru_cache
 
 import torch
 from ultralytics import YOLO
+from ultralytics import utils as ultralytics_utils
+from ultralytics.utils import torch_utils
 
 from app.config import settings
 
@@ -27,14 +29,38 @@ def _configure_threads() -> None:
     fractional-CPU cgroup, where this was a main contributor to production
     counts taking ~170s that take ~2s locally.
     """
-    if settings.TORCH_NUM_THREADS > 0:
+    if settings.TORCH_NUM_THREADS <= 0:
+        return
+
+    # ultralytics derives its own NUM_THREADS from os.cpu_count() — the
+    # *host's* core count, which ignores the container's CPU limit entirely
+    # — and re-applies it via torch.set_num_threads() inside every
+    # predict() call (ultralytics/utils/torch_utils.py). So setting torch's
+    # thread count once at startup is silently undone on the first
+    # inference; this overrides ultralytics' value at the source too.
+    # Verified: without this, torch.get_num_threads() reads 1 after startup
+    # but 8 again after a single predict().
+    ultralytics_utils.NUM_THREADS = settings.TORCH_NUM_THREADS
+    torch_utils.NUM_THREADS = settings.TORCH_NUM_THREADS
+
+    torch.set_num_threads(settings.TORCH_NUM_THREADS)
+    # Inter-op parallelism can only be set before any parallel work has
+    # started; ignore if torch has already initialized it.
+    try:
+        torch.set_num_interop_threads(settings.TORCH_NUM_THREADS)
+    except RuntimeError:
+        pass
+
+
+def enforce_threads() -> None:
+    """Re-assert the thread cap immediately before inference.
+
+    Belt-and-braces against the ultralytics override described above: even
+    if a future version reintroduces it by another path, this keeps the cap
+    effective. torch.set_num_threads is a cheap no-op when already correct.
+    """
+    if settings.TORCH_NUM_THREADS > 0 and torch.get_num_threads() != settings.TORCH_NUM_THREADS:
         torch.set_num_threads(settings.TORCH_NUM_THREADS)
-        # Inter-op parallelism can only be set before any parallel work has
-        # started; ignore if torch has already initialized it.
-        try:
-            torch.set_num_interop_threads(settings.TORCH_NUM_THREADS)
-        except RuntimeError:
-            pass
 
 
 _configure_threads()

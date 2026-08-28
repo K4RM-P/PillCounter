@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from concurrent.futures import ThreadPoolExecutor
 from typing import Optional
 
@@ -15,6 +16,10 @@ from app.inference.quality import assess_image_quality
 from app.models import Count
 from app.schemas import CountCreate, CountDetail, CountOut, CountResponse
 from app.storage import save_image
+
+# uvicorn only configures its own loggers, so a bare __name__ logger
+# would be dropped in production; reuse uvicorn's so this reaches Render.
+logger = logging.getLogger("uvicorn.error")
 
 router = APIRouter(prefix="/api", dependencies=[Depends(require_auth)])
 
@@ -37,6 +42,10 @@ async def count_image(file: UploadFile, model_version: Optional[str] = Form(defa
         raise HTTPException(status_code=400, detail="Could not decode image")
 
     decoded_height, decoded_width = image.shape[:2]
+    logger.info(
+        "count request: %d bytes -> decoded %dx%d",
+        len(data), decoded_width, decoded_height,
+    )
     longest_side = max(decoded_height, decoded_width)
     if longest_side > settings.MAX_IMAGE_DIMENSION:
         scale = settings.MAX_IMAGE_DIMENSION / longest_side
