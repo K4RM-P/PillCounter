@@ -9,8 +9,9 @@ import LoginPage from './pages/LoginPage'
 import RequireAuth from './components/RequireAuth'
 import ToastHost from './components/ToastHost'
 import NetworkBanner from './components/NetworkBanner'
-import InstallPrompt from './components/InstallPrompt'
+import InstallGatePage from './pages/InstallGatePage'
 import { isAuthenticated } from './auth'
+import { isStandalone } from './pwa'
 import { applyTheme, getTheme, toggleTheme } from './theme'
 import { flushQueue, queueLength } from './offlineQueue'
 import { saveCount, uploadForCount, warmBackend } from './api'
@@ -71,6 +72,10 @@ function App() {
 
   const showChrome = isAuthenticated() && location.pathname !== '/login'
 
+  if (!isStandalone()) {
+    return <InstallGatePage />
+  }
+
   return (
     <>
       {showChrome && (
@@ -98,7 +103,6 @@ function App() {
       )}
 
       {showChrome && <NetworkBanner />}
-      {showChrome && <InstallPrompt />}
 
       <div className="route-fade" key={location.pathname}>
         <Routes>
