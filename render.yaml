@@ -33,3 +33,16 @@ services:
         value: "false"
       - key: DENSE_RECROP_ENABLED
         value: "false"
+      # Ensemble mode runs the whole tiled pipeline twice (once per model) —
+      # the one remaining 2x-cost path even with everything above disabled.
+      # A client with "ensemble" persisted from earlier A/B testing would
+      # otherwise silently double the cost of every request on this
+      # hardware. Disabling it server-side makes requests fall back to the
+      # default single model instead of running (or hanging) at 2x cost.
+      - key: ENSEMBLE_ENABLED
+        value: "false"
+      # Belt-and-suspenders: if a photo is unusually dense/large and still
+      # runs long, fail fast with a clear, retryable error well before the
+      # client's own 120s upload timeout gives up silently.
+      - key: INFERENCE_TIMEOUT_SECONDS
+        value: "90"

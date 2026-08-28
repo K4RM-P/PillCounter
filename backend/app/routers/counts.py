@@ -1,3 +1,5 @@
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
 from typing import Optional
 
 import cv2
@@ -16,6 +18,12 @@ from app.storage import save_image
 
 router = APIRouter(prefix="/api", dependencies=[Depends(require_auth)])
 
+# count_pills is synchronous CPU-bound work; running it in a dedicated
+# executor (rather than FastAPI's default one) lets us attach a hard
+# wall-clock timeout via asyncio.wait_for without touching the rest of the
+# app's thread pool.
+_inference_executor = ThreadPoolExecutor(max_workers=2)
+
 
 @router.post("/count", response_model=CountResponse)
 async def count_image(file: UploadFile, model_version: Optional[str] = Form(default=None)):
@@ -27,17 +35,36 @@ async def count_image(file: UploadFile, model_version: Optional[str] = Form(defa
 
     weights_path = None
     ensemble = False
+    warnings: list[str] = []
     if model_version == "ensemble":
-        ensemble = True
+        if settings.ENSEMBLE_ENABLED:
+            ensemble = True
+        else:
+            # Ensemble genuinely doubles inference cost, which this
+            # deployment's hardware can't reliably absorb — fall back to the
+            # default single model instead of failing outright, so a client
+            # with "ensemble" persisted from earlier testing still gets a
+            # normal, timely count rather than an error.
+            warnings.append("Ensemble comparison is unavailable on this server right now — used the default model instead.")
     elif model_version is not None:
         weights_path = settings.MODEL_VERSIONS.get(model_version)
         if weights_path is None:
             raise HTTPException(status_code=400, detail=f"Unknown model_version '{model_version}'")
 
     height, width = image.shape[:2]
-    detections = count_pills(image, weights_path=weights_path, ensemble=ensemble)
+    loop = asyncio.get_running_loop()
+    try:
+        detections = await asyncio.wait_for(
+            loop.run_in_executor(_inference_executor, count_pills, image, weights_path, ensemble),
+            timeout=settings.INFERENCE_TIMEOUT_SECONDS,
+        )
+    except asyncio.TimeoutError:
+        raise HTTPException(
+            status_code=503,
+            detail="Counting took too long for this photo on the current server. Try again — a warm server is usually much faster — or retake the photo with fewer/less densely packed pills.",
+        )
     detections = [d for d in detections if d["confidence"] >= settings.CONFIDENCE_THRESHOLD]
-    warnings = assess_image_quality(image)
+    warnings += assess_image_quality(image)
 
     image_id = save_image(data)
 

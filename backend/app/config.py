@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+from typing import Optional
 
 
 class Settings:
@@ -83,6 +84,27 @@ class Settings:
 
     # Inference device: "auto" picks MPS/CUDA if available, else CPU.
     INFERENCE_DEVICE: str = os.getenv("INFERENCE_DEVICE", "auto")
+
+    # Ensemble mode (see routers/counts.py) runs the *entire* tiled pipeline
+    # twice — once per model version — which on Render's free shared CPU is
+    # enough on its own to blow past both the client's upload timeout and
+    # any patience a user has, even with every other cost-doubling knob
+    # above already turned off. When disabled, a request asking for ensemble
+    # silently falls back to the default single model instead of erroring,
+    # so a client with "ensemble" persisted in localStorage from earlier
+    # testing still gets a normal, timely count.
+    ENSEMBLE_ENABLED: bool = os.getenv("ENSEMBLE_ENABLED", "true").lower() == "true"
+
+    # Hard ceiling on a single count request's inference time. Without this,
+    # an unusually dense/large photo can run long enough that the request
+    # just hangs from the user's perspective until the client's own timeout
+    # gives up — with no clear error, just an endless spinner. Set below the
+    # client's upload timeout so the server fails fast with an actionable
+    # message instead. None (default) means no cap, for local dev on faster
+    # hardware where this was never observed.
+    INFERENCE_TIMEOUT_SECONDS: Optional[float] = (
+        float(os.getenv("INFERENCE_TIMEOUT_SECONDS")) if os.getenv("INFERENCE_TIMEOUT_SECONDS") else None
+    )
 
     # Shared single-login credential (PRD §7.5/§12) — not per-user accounts.
     AUTH_USERNAME: str = os.getenv("AUTH_USERNAME", "pharmacy")
