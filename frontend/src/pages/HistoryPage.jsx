@@ -126,6 +126,7 @@ export default function HistoryPage() {
       {stats && (
         <div className="stats-row">
           <div className="stat-tile">
+            <span className="stat-tile-icon"><StackIcon /></span>
             <div className="value">{stats.total}</div>
             <div className="label">Total counts</div>
           </div>
@@ -138,10 +139,12 @@ export default function HistoryPage() {
             style={{ cursor: 'pointer' }}
             title="Show only this week"
           >
+            <span className="stat-tile-icon"><CalendarIcon /></span>
             <div className="value">{stats.thisWeek}</div>
             <div className="label">This week</div>
           </div>
           <div className="stat-tile">
+            <span className="stat-tile-icon"><AvgIcon /></span>
             <div className="value">{stats.avg}</div>
             <div className="label">Avg. pills / count</div>
           </div>
@@ -232,6 +235,34 @@ export default function HistoryPage() {
         ))}
       </div>
     </div>
+  )
+}
+
+function StackIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="m12 2 9 5-9 5-9-5 9-5Z" />
+      <path d="m3 12 9 5 9-5" />
+      <path d="m3 17 9 5 9-5" />
+    </svg>
+  )
+}
+
+function CalendarIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="4" width="18" height="18" rx="2" />
+      <path d="M16 2v4M8 2v4M3 10h18" />
+    </svg>
+  )
+}
+
+function AvgIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 3v18h18" />
+      <path d="m19 9-5 5-4-4-4 4" />
+    </svg>
   )
 }
 

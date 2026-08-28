@@ -1,11 +1,12 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { uploadForCount } from '../api'
+import { fetchCounts, mediaUrl, uploadForCount } from '../api'
 import { downscaleImage } from '../downscale'
 import { enqueuePhoto, isNetworkError } from '../offlineQueue'
 import CameraCapture from '../components/CameraCapture'
 import { showToast } from '../toast'
 import { setUploading } from '../uploadState'
+import { formatRelativeTime } from '../relativeTime'
 
 // Remembered across visits so an A/B comparison session doesn't reset the
 // toggle on every photo. Written by the Settings page.
@@ -28,8 +29,17 @@ export default function CapturePage() {
   const [modelVersion] = useState(
     () => localStorage.getItem(MODEL_VERSION_KEY) || 'v2',
   )
+  const [lastCount, setLastCount] = useState(null)
   const navigate = useNavigate()
   const lastFileRef = useRef(null)
+
+  useEffect(() => {
+    fetchCounts()
+      .then((counts) => {
+        if (counts.length > 0) setLastCount(counts[0])
+      })
+      .catch(() => {})
+  }, [])
 
   async function handleFile(file) {
     if (!file) return
@@ -87,7 +97,7 @@ export default function CapturePage() {
 
   return (
     <div className="page">
-      <div className="row" style={{ justifyContent: 'space-between', alignItems: 'baseline' }}>
+      <div className="capture-hint-row">
         <p className="hint capture-hint-line">
           <strong style={{ color: 'var(--text-h)' }}>Count Pills</strong> — spread them out so they don't overlap.
         </p>
@@ -95,6 +105,16 @@ export default function CapturePage() {
           {MODEL_LABELS[modelVersion]} · Change
         </Link>
       </div>
+
+      {lastCount && !loading && (
+        <Link to={`/history/${lastCount.id}`} className="glance-card">
+          <img className="thumb" src={mediaUrl(lastCount.image_id)} alt="" />
+          <div className="glance-meta">
+            <div className="glance-title">Last count · {formatRelativeTime(lastCount.created_at)}</div>
+            <div className="glance-value">{lastCount.count} pill{lastCount.count === 1 ? '' : 's'}{lastCount.label ? ` — ${lastCount.label}` : ''}</div>
+          </div>
+        </Link>
+      )}
 
       {error && (
         <div className="alert-error">

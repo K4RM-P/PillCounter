@@ -15,6 +15,7 @@ import { flushQueue, queueLength } from './offlineQueue'
 import { saveCount, uploadForCount, warmBackend } from './api'
 import { isUploading, subscribeUploading } from './uploadState'
 import { showToast } from './toast'
+import { vibrate } from './haptics'
 
 function App() {
   const location = useLocation()
@@ -37,18 +38,31 @@ function App() {
     window.scrollTo(0, 0)
   }, [location.pathname])
 
-  useEffect(() => {
-    async function tryFlush() {
-      const flushed = await flushQueue(async (blob, label) => {
-        const result = await uploadForCount(blob)
-        await saveCount({ imageId: result.image_id, label, detections: result.detections })
-      })
-      if (flushed > 0) setPending(queueLength())
+  async function tryFlush({ silent } = {}) {
+    const flushed = await flushQueue(async (blob, label) => {
+      const result = await uploadForCount(blob)
+      await saveCount({ imageId: result.image_id, label, detections: result.detections })
+    })
+    if (flushed > 0) {
+      setPending(queueLength())
+      showToast(`Uploaded ${flushed} queued photo${flushed === 1 ? '' : 's'}`)
+    } else if (!silent) {
+      showToast('Still offline — will retry automatically', { variant: 'warn' })
     }
-    window.addEventListener('online', tryFlush)
-    tryFlush()
-    return () => window.removeEventListener('online', tryFlush)
+  }
+
+  useEffect(() => {
+    const handler = () => tryFlush({ silent: true })
+    window.addEventListener('online', handler)
+    handler()
+    return () => window.removeEventListener('online', handler)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  function handleRetryPending() {
+    vibrate(8)
+    tryFlush()
+  }
 
   function handleToggleTheme() {
     setDark(toggleTheme() === 'dark')
@@ -62,7 +76,16 @@ function App() {
         <div className="app-header no-print">
           <div className="greeting-title">PillCount</div>
           <div className="row" style={{ gap: 6 }}>
-            {pending > 0 && <span className="badge badge-warn">{pending} pending</span>}
+            {pending > 0 && (
+              <button
+                type="button"
+                className="badge badge-warn pending-badge"
+                onClick={handleRetryPending}
+                title="Tap to retry uploading now"
+              >
+                {pending} pending
+              </button>
+            )}
             <button className="btn btn-icon" onClick={handleToggleTheme} title="Toggle dark mode" aria-label="Toggle dark mode">
               {dark ? <SunIcon /> : <MoonIcon />}
             </button>

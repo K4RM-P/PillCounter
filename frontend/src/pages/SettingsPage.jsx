@@ -24,6 +24,7 @@ export default function SettingsPage() {
   }
 
   function handleLogout() {
+    if (!window.confirm('Log out of PillCount?')) return
     clearToken()
     navigate('/login')
   }
@@ -33,7 +34,12 @@ export default function SettingsPage() {
       <h2>Settings</h2>
 
       <div className="section-card stack">
-        <div className="section-label">Detection Model</div>
+        <div className="settings-row">
+          <span className="settings-row-icon">
+            <ModelIcon />
+          </span>
+          <span className="settings-row-label">Detection Model</span>
+        </div>
         <div className="segmented" role="radiogroup" aria-label="Model version" style={{ alignSelf: 'stretch' }}>
           {MODELS.map(({ key, label }) => (
             <button
@@ -57,11 +63,36 @@ export default function SettingsPage() {
       </div>
 
       <div className="section-card stack">
-        <div className="section-label">Account</div>
+        <div className="settings-row">
+          <span className="settings-row-icon">
+            <AccountIcon />
+          </span>
+          <span className="settings-row-label">Account</span>
+        </div>
         <button type="button" className="btn" onClick={handleLogout}>
           Log out
         </button>
       </div>
     </div>
+  )
+}
+
+function ModelIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="3" width="7" height="7" rx="1.5" />
+      <rect x="14" y="3" width="7" height="7" rx="1.5" />
+      <rect x="3" y="14" width="7" height="7" rx="1.5" />
+      <rect x="14" y="14" width="7" height="7" rx="1.5" />
+    </svg>
+  )
+}
+
+function AccountIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+      <circle cx="12" cy="7" r="4" />
+    </svg>
   )
 }

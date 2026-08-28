@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { fetchCounts, mediaUrl, saveCount, uploadForCount } from '../api'
 import { downscaleImage } from '../downscale'
@@ -23,8 +23,31 @@ export default function ResultPage() {
   const [error, setError] = useState(null)
   const [verifying, setVerifying] = useState(false)
   const [verifyCount, setVerifyCount] = useState(null)
+  const verifyRef = useRef(null)
 
   const draftLabelKey = imageId ? `pillcount_draft_label_${imageId}` : null
+
+  useEffect(() => {
+    if (verifying) verifyRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }, [verifying])
+
+  async function handleShare() {
+    const text = `Counted ${markers.length} pill${markers.length === 1 ? '' : 's'}${label ? ` (${label})` : ''} with PillCount.`
+    if (navigator.share) {
+      try {
+        await navigator.share({ text })
+      } catch {
+        // user cancelled the share sheet — nothing to do
+      }
+      return
+    }
+    try {
+      await navigator.clipboard.writeText(text)
+      showToast('Copied count to clipboard')
+    } catch {
+      showToast('Could not share', { variant: 'warn' })
+    }
+  }
 
   useEffect(() => {
     fetchCounts()
@@ -174,6 +197,9 @@ export default function ResultPage() {
           {modelVersion && <span className="badge">Model {modelVersion}</span>}
         </div>
         <div className="row no-print">
+          <button className="btn btn-icon" onClick={handleShare} title="Share count" aria-label="Share count">
+            <ShareIcon />
+          </button>
           <button className="btn btn-icon" onClick={undo} disabled={historyIndex === 0} title="Undo (Cmd/Ctrl+Z)" aria-label="Undo">
             <UndoIcon />
           </button>
@@ -259,7 +285,9 @@ export default function ResultPage() {
       </div>
 
       {verifying && (
-        <CameraCapture onCapture={handleVerifyPhoto} onUnavailable={() => setError('Camera unavailable for verification photo.')} />
+        <div ref={verifyRef}>
+          <CameraCapture onCapture={handleVerifyPhoto} onUnavailable={() => setError('Camera unavailable for verification photo.')} />
+        </div>
       )}
 
       <div className="sticky-action-bar no-print">
@@ -280,6 +308,18 @@ export default function ResultPage() {
         </div>
       )}
     </div>
+  )
+}
+
+function ShareIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="18" cy="5" r="3" />
+      <circle cx="6" cy="12" r="3" />
+      <circle cx="18" cy="19" r="3" />
+      <line x1="8.6" y1="10.5" x2="15.4" y2="6.5" />
+      <line x1="8.6" y1="13.5" x2="15.4" y2="17.5" />
+    </svg>
   )
 }
 
