@@ -397,20 +397,31 @@ def _dedup(detections: list[dict]) -> list[dict]:
 
 
 def _filter_outside_tray(image: np.ndarray, detections: list[dict]) -> list[dict]:
-    """Drops detections that are spatial outliers from the main group —
-    catches background clutter (table edges, nearby objects) that happens to
-    look pill-sized/pill-colored/pill-shaped enough to pass the other
-    filters, since none of those filters know anything about *where* the
-    pills should be.
+    """Drops small, isolated groups of detections that sit far from every
+    real pile — catches background clutter (table edges, nearby objects)
+    that happens to look pill-sized/pill-colored/pill-shaped enough to pass
+    the other filters, since none of those filters know anything about
+    *where* the pills should be.
 
     Clusters detections by proximity to each other (not by tray/background
     pixel color — an earlier version tried that and silently deleted every
     detection on a transparent tray with light-colored pills, since nothing
     there contrasted against the border sample it used as "background").
-    Keeps only the largest cluster, and only if it's a clear majority —
-    otherwise there's no confident "this is the real group" signal, and
-    it's safer to filter nothing than to risk mass-rejecting real pills.
+
+    Previously this kept only the single largest cluster whenever it held a
+    ≥60% majority, discarding every other cluster outright — which silently
+    deleted real pills whenever a tray had more than one physical pile (a
+    second, separate group of pills poured into a corner away from the main
+    mass reads exactly like this: many detections, tightly clustered
+    together, just far from the biggest group). A real photo like that had
+    an entire ~20-pill pile zeroed out. Multiple detections clustered
+    tightly together is itself strong evidence of a real pile of pills —
+    background clutter is normally one stray object, not a dozen. So now
+    only clusters small enough to plausibly be a single misdetection
+    (below MIN_CLUSTER_SIZE) get dropped; every cluster with real numbers
+    behind it is kept regardless of size relative to the largest.
     """
+    MIN_CLUSTER_SIZE = 3
     if len(detections) < 3:
         return detections
 
@@ -446,14 +457,18 @@ def _filter_outside_tray(image: np.ndarray, detections: list[dict]) -> list[dict
     for i in range(n):
         clusters.setdefault(find(i), []).append(i)
 
-    largest = max(clusters.values(), key=len)
-    if len(largest) < 0.6 * n:
-        # No dominant cluster — detections are too spread out to confidently
-        # call anything an "outlier". Don't filter.
+    # Keep every cluster with enough members to look like a real pile;
+    # only clusters this small (a lone stray detection, or a pair) lack
+    # enough evidence to be anything but noise or a genuine outlier.
+    kept_indices = {
+        idx for cluster in clusters.values() if len(cluster) >= MIN_CLUSTER_SIZE for idx in cluster
+    }
+    if not kept_indices:
+        # Nothing met the bar (e.g. every detection is its own tiny
+        # cluster) — there's no confident "this is noise" signal either;
+        # safer to filter nothing than to risk mass-rejecting real pills.
         return detections
-
-    largest_set = set(largest)
-    return [d for idx, d in enumerate(detections) if idx in largest_set]
+    return [d for idx, d in enumerate(detections) if idx in kept_indices]
 
 
 def _short_long_axes(d: dict) -> tuple[float, float]:
