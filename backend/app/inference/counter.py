@@ -441,9 +441,19 @@ def _filter_outside_tray(image: np.ndarray, detections: list[dict]) -> list[dict
 
     sizes = [max(d["_w"], d["_h"]) for d in detections if d.get("_w", 0) > 0 and d.get("_h", 0) > 0]
     median_size = sorted(sizes)[len(sizes) // 2] if sizes else 20.0
-    # Generous multiple of pill size — real pills in one tray/pile are
-    # typically within a few pill-widths of a neighbor; background clutter
-    # tends to be much farther from the main group than that.
+    # Tried lowering this to 3.0x to stop an isolated corner false positive
+    # from chaining into the main pile's cluster (see MIN_CLUSTER_SIZE
+    # below) — but this distance also does double duty keeping genuinely
+    # isolated REAL pills alive: a single true pill sitting alone near a
+    # tray corner only survives by chaining into the big cluster at this
+    # generous a distance, since on its own it's a cluster of 1, under
+    # MIN_CLUSTER_SIZE. Verified directly: tightening to 3.0x correctly
+    # dropped one corner false positive but also dropped a real, isolated
+    # pill on a different photo (confirmed by inspecting the exact pixel
+    # crop). Reverted — that trade isn't acceptable. Generous multiple of
+    # pill size: real pills in one tray/pile are typically within a few
+    # pill-widths of a neighbor; background clutter tends to be much
+    # farther from the main group than that.
     threshold = median_size * 6.0
 
     n = len(detections)
@@ -522,6 +532,21 @@ def _filter_size_shape_outliers(detections: list[dict]) -> list[dict]:
     median_short = shorts[len(shorts) // 2]
     longs = sorted(_short_long_axes(d)[1] for d in sized)
     median_long = longs[len(longs) // 2]
+    # Median absolute deviation for the long axis, same reasoning as the
+    # color filter's MAD below: a couple of true oversized outliers (tray
+    # hardware, a glare/highlight the model mistakes for a pill) inflate a
+    # plain median_long * 2.5 ceiling enough to let themselves through,
+    # since with a small sample (tens of detections) two or three outliers
+    # meaningfully drag the reference statistic they're being measured
+    # against. Caught live: two spurious ~1.7-1.9x-long detections on a
+    # tray's plastic corner survived a median_long*2.5 bound because they
+    # were part of what that median was computed from. MAD-based bounds
+    # resist this the way the color filter already does. Floored relative
+    # to the median so a tight, uniform batch doesn't become hair-trigger.
+    long_mad = max(
+        np.median([abs(v - median_long) for v in longs]) * 1.4826,
+        median_long * 0.15,
+    )
 
     kept = []
     for d in detections:
@@ -536,7 +561,7 @@ def _filter_size_shape_outliers(detections: list[dict]) -> list[dict]:
         # Reject only implausibly long boxes — no lower bound here, so a
         # pill turned to look short/round (sideways) isn't rejected for
         # having a long axis close to its short axis.
-        if long_ > median_long * 2.5:
+        if long_ > median_long + long_mad * 4.0:
             continue
         kept.append(d)
     return kept
