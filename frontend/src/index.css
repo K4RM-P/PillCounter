@@ -197,6 +197,7 @@ code {
 
 .app-header {
   flex: 0 0 auto;
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -209,6 +210,21 @@ code {
   border-bottom: 1px solid var(--border);
 }
 
+.app-header::before,
+.bottom-nav::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--text-h) 14%, transparent) 50%, transparent);
+  pointer-events: none;
+}
+
+.app-header::before {
+  bottom: -1px;
+}
+
 .app-header .greeting-title {
   font-size: 19px;
   font-weight: 700;
@@ -218,6 +234,7 @@ code {
 
 .bottom-nav {
   flex: 0 0 auto;
+  position: relative;
   display: flex;
   align-items: stretch;
   justify-content: center;
@@ -228,6 +245,10 @@ code {
   border-top: 1px solid var(--border);
   padding: 6px 8px calc(6px + env(safe-area-inset-bottom));
   z-index: 40;
+}
+
+.bottom-nav::before {
+  top: -1px;
 }
 
 .bottom-nav .navlink {
@@ -321,6 +342,7 @@ code {
   background: var(--accent);
   border-color: var(--accent);
   color: var(--accent-contrast);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16);
 }
 
 .btn-primary:hover {
@@ -483,7 +505,7 @@ code {
   width: 54px;
   height: 54px;
   border-radius: 999px;
-  background: #fff;
+  background: radial-gradient(circle at 35% 30%, #fff, #ededf0);
   transition: transform 0.1s ease;
 }
 
@@ -756,7 +778,7 @@ code {
   font-size: 14px;
   font-weight: 500;
   box-shadow: var(--shadow);
-  animation: toast-in 0.2s ease;
+  animation: toast-in 0.32s cubic-bezier(0.32, 0.72, 0, 1);
   max-width: 100%;
   text-align: center;
 }
@@ -769,11 +791,11 @@ code {
 @keyframes toast-in {
   from {
     opacity: 0;
-    transform: translateY(8px);
+    transform: translateY(8px) scale(0.92);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: translateY(0) scale(1);
   }
 }
 
@@ -783,7 +805,7 @@ code {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  animation: route-fade-in 0.18s ease;
+  animation: route-fade-in 0.32s cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 @keyframes route-fade-in {
@@ -819,6 +841,7 @@ code {
 }
 
 .segmented {
+  position: relative;
   display: flex;
   gap: 2px;
   padding: 3px;
@@ -827,7 +850,21 @@ code {
   border: 1px solid var(--border);
 }
 
+.segmented-thumb {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  left: 3px;
+  border-radius: 999px;
+  background: var(--bg);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+  transition: transform 0.28s cubic-bezier(0.32, 0.72, 0, 1);
+  pointer-events: none;
+}
+
 .segmented button {
+  position: relative;
+  z-index: 1;
   flex: 1;
   border: none;
   background: transparent;
@@ -838,14 +875,12 @@ code {
   padding: 7px 10px;
   border-radius: 999px;
   cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease;
+  transition: color 0.15s ease;
   white-space: nowrap;
 }
 
 .segmented button.active {
-  background: var(--bg);
   color: var(--text-h);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
 }
 
 .segmented button:active {
@@ -877,7 +912,8 @@ code {
   width: 56px;
   height: 56px;
   border-radius: 999px;
-  background: var(--surface);
+  background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--surface) 40%, var(--bg)), var(--surface));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), inset 0 -1px 0 rgba(0, 0, 0, 0.03);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -951,6 +987,7 @@ code {
   object-fit: cover;
   flex-shrink: 0;
   background: var(--surface);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.06);
 }
 
 .history-card .meta {
@@ -1114,8 +1151,8 @@ code {
   align-items: center;
   justify-content: center;
   border-radius: 10px;
-  background: var(--accent-bg);
-  color: var(--text-h);
+  background: var(--accent2-bg);
+  color: var(--accent2);
 }
 
 .settings-row-label {
@@ -1154,6 +1191,7 @@ code {
   object-fit: cover;
   flex-shrink: 0;
   background: var(--bg);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.06);
 }
 
 .glance-card .glance-meta {
@@ -1266,7 +1304,7 @@ code {
   width: 72px;
   height: 72px;
   border-radius: 999px;
-  background: var(--accent);
+  background: linear-gradient(160deg, color-mix(in srgb, var(--accent) 85%, white), var(--accent));
   color: var(--accent-contrast);
   display: flex;
   align-items: center;

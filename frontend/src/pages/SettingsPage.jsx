@@ -40,6 +40,13 @@ export default function SettingsPage() {
           <span className="settings-row-label">Detection Model</span>
         </div>
         <div className="segmented" role="radiogroup" aria-label="Model version" style={{ alignSelf: 'stretch' }}>
+          <span
+            className="segmented-thumb"
+            style={{
+              width: `calc((100% - 6px) / ${MODELS.length})`,
+              transform: `translateX(${MODELS.findIndex((m) => m.key === modelVersion) * 100}%)`,
+            }}
+          />
           {MODELS.map(({ key, label }) => (
             <button
               key={key}

@@ -169,6 +169,13 @@ export default function HistoryPage() {
             )}
           </div>
           <div className="segmented">
+            <span
+              className="segmented-thumb"
+              style={{
+                width: `calc((100% - 6px) / ${DAY_OPTIONS.length})`,
+                transform: `translateX(${DAY_OPTIONS.findIndex((o) => o.value === days) * 100}%)`,
+              }}
+            />
             {DAY_OPTIONS.map((opt) => (
               <button
                 key={opt.value}

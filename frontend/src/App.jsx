@@ -151,7 +151,7 @@ function App() {
       {showChrome && (
         <nav className="bottom-nav no-print">
           <Link to="/" className={`navlink${location.pathname === '/' ? ' active' : ''}`}>
-            <CameraIcon />
+            <CameraIcon active={location.pathname === '/'} />
             <span>Count</span>
           </Link>
           <Link
@@ -168,7 +168,7 @@ function App() {
             title={uploading ? 'Wait for the current count to finish' : undefined}
           >
             <span className="navlink-icon-wrap">
-              <HistoryIcon />
+              <HistoryIcon active={location.pathname.startsWith('/history')} />
               {pending > 0 && <span className="badge-dot" />}
             </span>
             <span>History</span>
@@ -205,7 +205,15 @@ function SettingsIcon() {
   )
 }
 
-function CameraIcon() {
+function CameraIcon({ active }) {
+  if (active) {
+    return (
+      <svg className="icon" width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2Z" />
+        <circle cx="12" cy="13" r="4" fill="var(--bg)" />
+      </svg>
+    )
+  }
   return (
     <svg className="icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2Z" />
@@ -214,9 +222,9 @@ function CameraIcon() {
   )
 }
 
-function HistoryIcon() {
+function HistoryIcon({ active }) {
   return (
-    <svg className="icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg className="icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={active ? 2.5 : 2} strokeLinecap="round" strokeLinejoin="round">
       <path d="M3 3v5h5" />
       <path d="M3.05 13a9 9 0 1 0 .5-4.5L3 8" />
       <path d="M12 7v5l4 2" />
