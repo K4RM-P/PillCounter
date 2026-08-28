@@ -12,21 +12,41 @@ const HIT_TARGET_PX = 22
 // Renders an image with editable pill markers overlaid.
 // markers are stored in normalized (0-1) image coordinates so they stay
 // correctly positioned regardless of the rendered image size.
+const DBLCLICK_WINDOW_MS = 250
+
 export default function MarkerOverlay({ imageUrl, markers, onAddMarker, onRemoveMarker, editable }) {
   const imgRef = useRef(null)
   const [zoomed, setZoomed] = useState(false)
+  const pendingClickRef = useRef(null)
 
+  // A double-click to zoom fires as click, click, dblclick — without this
+  // delay, both plain clicks would already have added markers by the time
+  // dblclick toggles zoom, planting two phantom markers every time someone
+  // zooms in. Holding the first click briefly lets a following click (or
+  // dblclick) cancel it instead of committing a marker.
   function handleImageClick(e) {
     if (!editable || !onAddMarker) return
+    if (pendingClickRef.current) {
+      clearTimeout(pendingClickRef.current)
+      pendingClickRef.current = null
+      return
+    }
     const rect = imgRef.current.getBoundingClientRect()
     const x = (e.clientX - rect.left) / rect.width
     const y = (e.clientY - rect.top) / rect.height
-    onAddMarker({ x, y, confidence: 1.0 })
-    vibrate(8)
+    pendingClickRef.current = setTimeout(() => {
+      pendingClickRef.current = null
+      onAddMarker({ x, y, confidence: 1.0 })
+      vibrate(8)
+    }, DBLCLICK_WINDOW_MS)
   }
 
   function handleDoubleClick(e) {
     e.stopPropagation()
+    if (pendingClickRef.current) {
+      clearTimeout(pendingClickRef.current)
+      pendingClickRef.current = null
+    }
     setZoomed((z) => !z)
   }
 
@@ -83,17 +103,16 @@ export default function MarkerOverlay({ imageUrl, markers, onAddMarker, onRemove
 }
 
 // Manually added markers (confidence 1.0) are always the "confident" color.
-// Model detections are graded: >=0.75 confident, 0.5-0.75 borderline, <0.5 flagged.
+// Two states only: confident (the app's own accent) or flagged for review —
+// a third, unrelated hue for "borderline" fragmented the app's color
+// language without adding a decision the user could act on differently.
 function markerColor(confidence) {
   const c = confidence ?? 1
-  if (c >= 0.75) return 'rgba(170, 59, 255, 0.75)'
-  if (c >= 0.5) return 'rgba(245, 158, 11, 0.85)'
-  return 'rgba(229, 72, 77, 0.85)'
+  return c >= 0.75 ? 'var(--accent2)' : 'rgba(229, 72, 77, 0.9)'
 }
 
 function markerTitle(marker) {
   const c = marker.confidence ?? 1
   if (c >= 0.75) return 'Tap to remove'
-  if (c >= 0.5) return `Low confidence (${Math.round(c * 100)}%) — tap to remove`
   return `Flagged, low confidence (${Math.round(c * 100)}%) — tap to remove`
 }

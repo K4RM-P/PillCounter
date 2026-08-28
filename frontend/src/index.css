@@ -9,9 +9,12 @@
   --accent-bg: rgba(12, 12, 15, 0.06);
   --accent-border: rgba(12, 12, 15, 0.5);
   --accent-contrast: #fff;
+  --accent2: #007aff;
+  --accent2-bg: rgba(0, 122, 255, 0.1);
   --social-bg: rgba(244, 243, 236, 0.5);
   --shadow:
     rgba(0, 0, 0, 0.08) 0 10px 24px -8px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
+  --caption-size: 13px;
 
   --sans: -apple-system, system-ui, 'Segoe UI', Roboto, sans-serif;
   --heading: -apple-system, system-ui, 'Segoe UI', Roboto, sans-serif;
@@ -44,6 +47,8 @@
     --accent-bg: rgba(245, 245, 247, 0.08);
     --accent-border: rgba(245, 245, 247, 0.4);
     --accent-contrast: #0b0b0d;
+    --accent2: #0a84ff;
+    --accent2-bg: rgba(10, 132, 255, 0.16);
     --social-bg: rgba(47, 48, 58, 0.5);
     --shadow:
       rgba(0, 0, 0, 0.5) 0 10px 24px -8px, rgba(0, 0, 0, 0.3) 0 4px 6px -2px;
@@ -129,6 +134,8 @@ code {
   --accent-bg: rgba(245, 245, 247, 0.08);
   --accent-border: rgba(245, 245, 247, 0.4);
   --accent-contrast: #0b0b0d;
+  --accent2: #0a84ff;
+  --accent2-bg: rgba(10, 132, 255, 0.16);
   --social-bg: rgba(47, 48, 58, 0.5);
 }
 
@@ -143,6 +150,8 @@ code {
   --accent-bg: rgba(12, 12, 15, 0.06);
   --accent-border: rgba(12, 12, 15, 0.5);
   --accent-contrast: #fff;
+  --accent2: #007aff;
+  --accent2-bg: rgba(0, 122, 255, 0.1);
   --social-bg: rgba(244, 243, 236, 0.5);
 }
 
@@ -151,7 +160,7 @@ code {
 }
 
 :focus-visible {
-  outline: 2px solid var(--accent-border);
+  outline: 2px solid var(--accent2);
   outline-offset: 2px;
   border-radius: 8px;
 }
@@ -244,7 +253,7 @@ code {
 }
 
 .bottom-nav .navlink.active {
-  background: var(--accent-bg);
+  background: var(--accent2-bg);
 }
 
 .bottom-nav .navlink .icon {
@@ -254,7 +263,7 @@ code {
 }
 
 .bottom-nav .navlink.active {
-  color: var(--text-h);
+  color: var(--accent2);
 }
 
 .bottom-nav .navlink.active .icon {
@@ -526,7 +535,7 @@ code {
 
 .input:focus,
 .select:focus {
-  outline: 2px solid var(--accent-border);
+  outline: 2px solid var(--accent2);
   outline-offset: 1px;
 }
 
@@ -589,7 +598,7 @@ code {
 }
 
 .badge {
-  font-size: 12px;
+  font-size: var(--caption-size);
   font-weight: 600;
   padding: 3px 9px;
   border-radius: 999px;
@@ -633,7 +642,7 @@ code {
   align-items: center;
   gap: 8px;
   padding: 8px 20px;
-  font-size: 12.5px;
+  font-size: var(--caption-size);
   font-weight: 500;
   color: #b45309;
   background: rgba(245, 158, 11, 0.12);
@@ -844,7 +853,7 @@ code {
 }
 
 .section-label {
-  font-size: 12px;
+  font-size: var(--caption-size);
   font-weight: 700;
   letter-spacing: 0.6px;
   text-transform: uppercase;
@@ -965,7 +974,7 @@ code {
 
 .count-chip {
   flex-shrink: 0;
-  font-size: 12px;
+  font-size: var(--caption-size);
   font-weight: 700;
   padding: 3px 10px;
   border-radius: 999px;
@@ -977,7 +986,7 @@ code {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
-  font-size: 12px;
+  font-size: var(--caption-size);
   color: var(--text);
 }
 
@@ -1014,6 +1023,18 @@ code {
   border: 1.5px solid white;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
   pointer-events: none;
+  animation: marker-pop 0.18s cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
+}
+
+@keyframes marker-pop {
+  from {
+    transform: scale(0.3);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
 }
 
 .marker-overlay-wrap.zoomed {
@@ -1053,6 +1074,11 @@ code {
   font-size: 15px;
   color: var(--text);
   font-weight: 500;
+}
+
+.hero-count-sm .value {
+  font-size: 28px;
+  letter-spacing: -0.6px;
 }
 
 .section-card {
@@ -1136,7 +1162,7 @@ code {
 }
 
 .glance-card .glance-title {
-  font-size: 12px;
+  font-size: var(--caption-size);
   font-weight: 600;
   color: var(--text);
   opacity: 0.65;
@@ -1165,15 +1191,6 @@ code {
   border: none;
   font: inherit;
   cursor: pointer;
-}
-
-.section-label {
-  font-size: 12px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.4px;
-  color: var(--text);
-  opacity: 0.6;
 }
 
 .capture-hint-line {

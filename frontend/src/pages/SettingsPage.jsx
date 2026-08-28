@@ -24,7 +24,6 @@ export default function SettingsPage() {
   }
 
   function handleLogout() {
-    if (!window.confirm('Log out of PillCount?')) return
     clearToken()
     navigate('/login')
   }

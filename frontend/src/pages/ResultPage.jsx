@@ -212,15 +212,11 @@ export default function ResultPage() {
 
       <div className="legend-row">
         <span className="legend-item">
-          <span className="legend-dot" style={{ background: 'rgba(170, 59, 255, 0.75)' }} />
+          <span className="legend-dot" style={{ background: 'var(--accent2)' }} />
           Confident
         </span>
         <span className="legend-item">
-          <span className="legend-dot" style={{ background: 'rgba(245, 158, 11, 0.85)' }} />
-          Borderline
-        </span>
-        <span className="legend-item">
-          <span className="legend-dot" style={{ background: 'rgba(229, 72, 77, 0.85)' }} />
+          <span className="legend-dot" style={{ background: 'rgba(229, 72, 77, 0.9)' }} />
           Flagged
         </span>
       </div>

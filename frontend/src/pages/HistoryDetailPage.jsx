@@ -37,10 +37,12 @@ export default function HistoryDetailPage() {
             <BackIcon />
           </Link>
           <div>
-            <h2 style={{ marginBottom: 0 }}>{record.label || 'Untitled'}</h2>
-            <p className="hint">
-              {record.count} pills — {new Date(record.created_at).toLocaleString()}
-            </p>
+            <h2 style={{ marginBottom: 4 }}>{record.label || 'Untitled'}</h2>
+            <div className="hero-count hero-count-sm">
+              <span className="value">{record.count}</span>
+              <span className="unit">pill{record.count === 1 ? '' : 's'}</span>
+            </div>
+            <p className="hint">{new Date(record.created_at).toLocaleString()}</p>
           </div>
         </div>
         <button className="btn btn-icon no-print" onClick={() => window.print()} aria-label="Print or save as PDF" title="Print / Save as PDF">

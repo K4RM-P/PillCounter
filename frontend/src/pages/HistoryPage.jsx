@@ -22,6 +22,7 @@ export default function HistoryPage() {
   const [days, setDays] = useState(() => localStorage.getItem(DAYS_FILTER_KEY) || 'all')
   const [lastFetched, setLastFetched] = useState(null)
   const [refreshing, setRefreshing] = useState(false)
+  const [showMoreFilters, setShowMoreFilters] = useState(false)
 
   function selectDays(value) {
     vibrate(8)
@@ -167,24 +168,6 @@ export default function HistoryPage() {
               </button>
             )}
           </div>
-          <div className="row">
-            <input
-              className="input"
-              type="number"
-              placeholder="Min count"
-              value={minCount}
-              onChange={(e) => setMinCount(e.target.value)}
-              style={{ width: 110 }}
-            />
-            <input
-              className="input"
-              type="number"
-              placeholder="Max count"
-              value={maxCount}
-              onChange={(e) => setMaxCount(e.target.value)}
-              style={{ width: 110 }}
-            />
-          </div>
           <div className="segmented">
             {DAY_OPTIONS.map((opt) => (
               <button
@@ -197,11 +180,43 @@ export default function HistoryPage() {
               </button>
             ))}
           </div>
-          {hasActiveFilters && (
-            <button type="button" className="btn" style={{ alignSelf: 'flex-start', background: 'transparent', border: 'none', padding: '4px 0' }} onClick={clearFilters}>
-              Clear all filters
-            </button>
+
+          {showMoreFilters && (
+            <div className="row">
+              <input
+                className="input"
+                type="number"
+                placeholder="Min count"
+                value={minCount}
+                onChange={(e) => setMinCount(e.target.value)}
+                style={{ width: 110 }}
+              />
+              <input
+                className="input"
+                type="number"
+                placeholder="Max count"
+                value={maxCount}
+                onChange={(e) => setMaxCount(e.target.value)}
+                style={{ width: 110 }}
+              />
+            </div>
           )}
+
+          <div className="row" style={{ justifyContent: 'space-between' }}>
+            <button
+              type="button"
+              className="btn"
+              style={{ background: 'transparent', border: 'none', padding: '4px 0' }}
+              onClick={() => setShowMoreFilters((v) => !v)}
+            >
+              {showMoreFilters ? 'Hide count filters' : 'Filter by count range'}
+            </button>
+            {hasActiveFilters && (
+              <button type="button" className="btn" style={{ background: 'transparent', border: 'none', padding: '4px 0' }} onClick={clearFilters}>
+                Clear all
+              </button>
+            )}
+          </div>
         </div>
       )}
 
