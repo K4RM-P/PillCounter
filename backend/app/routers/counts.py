@@ -125,3 +125,43 @@ def get_count(count_id: int, db: Session = Depends(get_db)):
     if record is None:
         raise HTTPException(status_code=404, detail="Count not found")
     return record
+
+
+@router.get("/_bench")
+def bench(tiles: int = 6):
+    """Temporary hardware probe: what does this box actually do per tile?
+
+    Local measurements have repeatedly failed to predict production here
+    (an ONNX build measured 3.6x faster on this laptop turned out to be
+    CoreML acceleration that the deploy target doesn't have, and thread
+    tuning behaves differently under a CPU quota than on bare metal). This
+    reports the container's real CPU allowance and times each available
+    engine on the actual deployed hardware. Remove once tuning is settled.
+    """
+    import os
+    import time
+    from pathlib import Path
+
+    import torch
+    from app.inference.model import get_model
+
+    info: dict = {"cpu_count": os.cpu_count(), "torch_threads": torch.get_num_threads()}
+    for f in ("/sys/fs/cgroup/cpu.max", "/sys/fs/cgroup/cpu/cpu.cfs_quota_us"):
+        if Path(f).exists():
+            info[f] = Path(f).read_text().strip()
+
+    tile = np.random.randint(0, 255, (595, 595, 3), dtype=np.uint8)
+    for label, weights in (("torch", "ml/weights/pill_v2.pt"), ("onnx", "ml/weights/pill_v2.onnx")):
+        if not Path(weights).exists():
+            continue
+        try:
+            model = get_model(weights)
+            imgsz = getattr(model, "pillcount_fixed_imgsz", None) or 608
+            model.predict(tile, imgsz=imgsz, verbose=False)  # warm
+            start = time.perf_counter()
+            for _ in range(tiles):
+                model.predict(tile, imgsz=imgsz, verbose=False)
+            info[f"{label}_ms_per_tile"] = round((time.perf_counter() - start) / tiles * 1000, 1)
+        except Exception as exc:  # engine unavailable on this box
+            info[f"{label}_error"] = f"{type(exc).__name__}: {exc}"[:200]
+    return info

@@ -25,7 +25,11 @@ COPY . .
 # so before app.inference.model's torch.set_num_threads) can intervene —
 # without them the OMP pool is already sized to the host's core count.
 # Matches TORCH_NUM_THREADS; see model._configure_threads for why 1.
-ENV OMP_NUM_THREADS=1 \
+# ultralytics otherwise pip-installs missing extras at request time, which
+# stalled a production count for 68s and upgraded numpy past the pin in
+# requirements.txt. Everything it needs is declared there instead.
+ENV YOLO_AUTOINSTALL=false \
+    OMP_NUM_THREADS=1 \
     MKL_NUM_THREADS=1 \
     OPENBLAS_NUM_THREADS=1
 

@@ -77,6 +77,28 @@ def resolve_device() -> str:
     return "cpu"
 
 
+def _restrict_onnx_to_cpu() -> None:
+    """Force ONNX Runtime to use its plain CPU execution provider.
+
+    ultralytics hands onnxruntime *every* available provider and keeps
+    whichever sorts first (nn/autobackend.py: it only ever filters out
+    CUDA). The stock onnxruntime wheel advertises AzureExecutionProvider,
+    which sorts ahead of CPU — so inference silently bound to it and a
+    dense count that should take ~13s took 223s in production. Narrowing
+    the advertised list is the least invasive way to pin the choice, since
+    the provider list is read inside ultralytics rather than passed in.
+    """
+    import onnxruntime
+
+    if getattr(onnxruntime, "_pillcount_cpu_only", False):
+        return
+    available = onnxruntime.get_available_providers
+    onnxruntime.get_available_providers = lambda: [
+        p for p in available() if p == "CPUExecutionProvider"
+    ] or ["CPUExecutionProvider"]
+    onnxruntime._pillcount_cpu_only = True
+
+
 def _resolve_weights(path: str) -> str:
     """Swap a .pt path for its ONNX export when one exists.
 
@@ -120,12 +142,17 @@ def get_model(weights_path: str | None = None) -> YOLO:
     testing candidate weights against the production default) be loaded and
     reused within the same process instead of reloading from disk per request."""
     path = _resolve_weights(weights_path or settings.MODEL_WEIGHTS_PATH)
+    is_onnx = not str(path).endswith(".pt")
+    # Must precede YOLO(), which reads the provider list when it builds its
+    # backend — patching afterwards would be too late for the session.
+    if is_onnx:
+        _restrict_onnx_to_cpu()
     model = YOLO(path)
     # Exported runtimes (ONNX) own their own execution provider and reject
     # .to() — device placement only applies to the PyTorch format. They are
     # also exported at one static input size, so record it: every predict
     # call must use exactly that size or onnxruntime rejects the input.
-    if not str(path).endswith(".pt"):
+    if is_onnx:
         model.pillcount_fixed_imgsz = _onnx_input_size(path)
         return model
     # Warm up on the actual inference device so the first real request isn't
