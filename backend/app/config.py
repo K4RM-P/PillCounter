@@ -85,15 +85,22 @@ class Settings:
     # Inference device: "auto" picks MPS/CUDA if available, else CPU.
     INFERENCE_DEVICE: str = os.getenv("INFERENCE_DEVICE", "auto")
 
-    # Prefer an ONNX Runtime export of the weights when one sits next to the
-    # .pt file (ml/weights/pill_v2.onnx beside pill_v2.pt). Same trained
-    # weights and same fp32 math — only the execution engine differs — but
-    # ONNX Runtime's CPU kernels measured 3.6x faster per tile than
-    # PyTorch's (33.3ms -> 9.2ms), which is most of what makes a dense
-    # count finish in seconds rather than a minute on a fractional CPU.
-    # Verified to produce byte-identical counts across the regression set
-    # before being enabled. Turn off to fall back to the .pt weights.
-    ONNX_RUNTIME_ENABLED: bool = os.getenv("ONNX_RUNTIME_ENABLED", "true").lower() == "true"
+    # Prefer an ONNX Runtime export of the weights when one sits beside the
+    # .pt file. Same weights and same fp32 math, only a different engine —
+    # but measured on the actual deploy target (AMD EPYC 7R13, AVX2 only)
+    # ONNX is 4.6x *slower* than PyTorch (4001 vs 865 ms/tile), and
+    # OpenVINO 1.7x slower still being Intel-tuned. An earlier 3.6x ONNX
+    # win on a dev laptop turned out to be CoreML, which no Linux host has.
+    # So this defaults off; the exports and loader stay because a different
+    # host (Intel, or with AVX-512/VNNI) could flip the result — re-run
+    # /api/_bench there before turning it on.
+    ONNX_RUNTIME_ENABLED: bool = os.getenv("ONNX_RUNTIME_ENABLED", "false").lower() == "true"
+
+    # Hold conv weights in channels-last memory layout. Pure layout change —
+    # same fp32 weights, same math, counts verified unchanged — but it lets
+    # oneDNN pick better-vectorised kernels: measured 851.7ms -> 749.9ms per
+    # forward pass on the deployed AMD EPYC (see /api/_bench).
+    CHANNELS_LAST: bool = os.getenv("CHANNELS_LAST", "true").lower() == "true"
 
     # torch intra-op thread count; 0 leaves torch's default (one thread per
     # host core). Defaults to 1 because more threads measured strictly

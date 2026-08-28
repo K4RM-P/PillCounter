@@ -180,4 +180,8 @@ def get_model(weights_path: str | None = None) -> YOLO:
     # Warm up on the actual inference device so the first real request isn't
     # slowed by lazy weight transfer/kernel compilation.
     model.to(resolve_device())
+    if settings.CHANNELS_LAST:
+        # Layout-only change: convolution results are identical, but oneDNN
+        # can select better-vectorised kernels for this layout on CPU.
+        model.model = model.model.to(memory_format=torch.channels_last)
     return model
