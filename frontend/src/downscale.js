@@ -21,19 +21,29 @@ function isHeic(file) {
 }
 
 export async function downscaleImage(file) {
-  let source = file
-  if (isHeic(file)) {
-    try {
-      const heic2any = (await import('heic2any')).default
-      const converted = await heic2any({ blob: file, toType: 'image/jpeg', quality: 0.9 })
-      source = Array.isArray(converted) ? converted[0] : converted
-    } catch {
-      throw new Error(
-        'This photo\'s format (HDR or Live Photo HEIC) isn\'t supported. Try taking the photo with the in-app camera instead, or re-export it as JPEG (Photos app → Share → Options → uncheck "Live" / choose JPEG) before uploading.'
-      )
-    }
+  if (!isHeic(file)) return downscaleToJpeg(file)
+
+  // Safari/WebKit can decode HEIC natively via <img>/canvas — it's Apple's
+  // own format — including HDR gain-map and Live Photo variants that
+  // heic2any's JS-based decoder chokes on. Try that first; it's also faster
+  // since it skips a full JS decode. Fall back to heic2any for browsers
+  // without native HEIC support (Chrome/Firefox/Android).
+  try {
+    return await downscaleToJpeg(file)
+  } catch {
+    // fall through to heic2any
   }
-  return downscaleToJpeg(source)
+
+  try {
+    const heic2any = (await import('heic2any')).default
+    const converted = await heic2any({ blob: file, toType: 'image/jpeg', quality: 0.9 })
+    const source = Array.isArray(converted) ? converted[0] : converted
+    return await downscaleToJpeg(source)
+  } catch {
+    throw new Error(
+      'This photo\'s format (HDR or Live Photo HEIC) isn\'t supported. Try taking the photo with the in-app camera instead, or re-export it as JPEG (Photos app → Share → Options → uncheck "Live" / choose JPEG) before uploading.'
+    )
+  }
 }
 
 function downscaleToJpeg(file) {
