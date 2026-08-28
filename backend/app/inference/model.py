@@ -9,6 +9,7 @@ import re
 from functools import lru_cache
 from pathlib import Path
 
+import numpy as np
 import torch
 from ultralytics import YOLO
 from ultralytics import utils as ultralytics_utils
@@ -183,5 +184,18 @@ def get_model(weights_path: str | None = None) -> YOLO:
     if settings.CHANNELS_LAST:
         # Layout-only change: convolution results are identical, but oneDNN
         # can select better-vectorised kernels for this layout on CPU.
-        model.model = model.model.to(memory_format=torch.channels_last)
+        #
+        # Order matters. ultralytics fuses conv+BN lazily on first predict,
+        # and that fusion reshapes conv weights with .view(), which raises
+        # on a channels-last tensor ("size is not compatible with input
+        # tensor's stride"). So force the fuse first with a throwaway
+        # inference, then convert the already-fused weights. This also
+        # doubles as the warmup it replaces.
+        try:
+            model.predict(np.zeros((64, 64, 3), dtype=np.uint8), imgsz=64, verbose=False)
+            model.model = model.model.to(memory_format=torch.channels_last)
+        except Exception:
+            # Never let an optimisation break inference; fall back to the
+            # default layout, which is correct just slightly slower.
+            pass
     return model
