@@ -3,11 +3,15 @@ import { vibrate } from '../haptics'
 
 // Fixed, small marker size — proportional sizing (based on detected pill
 // size) was tried and made circles too large in practice on dense photos,
-// so every marker gets the same small dot regardless of pill size. The tap
-// target is a bit larger than the visible dot for reliable removal without
+// so every marker gets the same small dot regardless of pill size. Sized
+// for the densest real photos (300+ pills, each ~30px on screen at typical
+// viewport width) — at that density even a 22px tap target starts
+// overlapping its neighbors and reads as "off-center" even when it isn't,
+// since the eye can't tell which dot belongs to which pill. The tap target
+// stays a little larger than the visible dot for reliable removal without
 // the dot itself visually overlapping neighboring pills.
-const DOT_PX = 10
-const HIT_TARGET_PX = 22
+const DOT_PX = 7
+const HIT_TARGET_PX = 16
 
 // Renders an image with editable pill markers overlaid.
 // markers are stored in normalized (0-1) image coordinates so they stay
