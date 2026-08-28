@@ -12,8 +12,6 @@ import { formatRelativeTime } from '../relativeTime'
 // toggle on every photo. Written by the Settings page.
 const MODEL_VERSION_KEY = 'pillcount_model_version'
 
-const MODEL_LABELS = { v2: 'Model v2', v3: 'Model v3', ensemble: 'Ensemble' }
-
 const PROCESSING_STAGES = [
   { afterMs: 0, text: 'Preparing photo...' },
   { afterMs: 1500, text: 'Uploading photo...' },
@@ -97,14 +95,9 @@ export default function CapturePage() {
 
   return (
     <div className="page">
-      <div className="capture-hint-row">
-        <p className="hint capture-hint-line">
-          <strong style={{ color: 'var(--text-h)' }}>Count Pills</strong> — spread them out so they don't overlap.
-        </p>
-        <Link to="/settings" className="model-status-link">
-          {MODEL_LABELS[modelVersion]} · Change
-        </Link>
-      </div>
+      <p className="hint capture-hint-line">
+        <strong style={{ color: 'var(--text-h)' }}>Count Pills</strong> — spread them out so they don't overlap.
+      </p>
 
       {lastCount && !loading && (
         <Link to={`/history/${lastCount.id}`} className="glance-card">
