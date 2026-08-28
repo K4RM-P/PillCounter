@@ -179,4 +179,31 @@ def bench(tiles: int = 6):
             info[f"{label}_ms_per_tile"] = round((time.perf_counter() - start) / tiles * 1000, 1)
         except Exception as exc:  # engine unavailable on this box
             info[f"{label}_error"] = f"{type(exc).__name__}: {exc}"[:200]
+
+    # Kernel-level variants of the PyTorch path, timed on the raw forward
+    # pass so they compare like-for-like without pre/post-processing noise.
+    # All keep fp32 weights: channels_last only changes memory layout, and
+    # jit freeze/fuse is numerically equivalent up to float associativity.
+    try:
+        net = get_model("ml/weights/pill_v2.pt").model.eval()
+        x = torch.rand(1, 3, 608, 608)
+
+        def timed(fn, warm=2, runs=4):
+            with torch.inference_mode():
+                for _ in range(warm):
+                    fn()
+                start = time.perf_counter()
+                for _ in range(runs):
+                    fn()
+            return round((time.perf_counter() - start) / runs * 1000, 1)
+
+        info["fwd_eager_ms"] = timed(lambda: net(x))
+        net_cl = net.to(memory_format=torch.channels_last)
+        x_cl = x.to(memory_format=torch.channels_last)
+        info["fwd_channels_last_ms"] = timed(lambda: net_cl(x_cl))
+        with torch.inference_mode():
+            frozen = torch.jit.freeze(torch.jit.trace(net, x))
+        info["fwd_jit_frozen_ms"] = timed(lambda: frozen(x))
+    except Exception as exc:
+        info["fwd_error"] = f"{type(exc).__name__}: {exc}"[:200]
     return info
