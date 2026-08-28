@@ -25,7 +25,11 @@ function authHeaders() {
 const REQUEST_TIMEOUT_MS = 60000
 // Inference (tiled model pass over a phone-resolution photo) legitimately
 // takes longer than a login/list request, especially on a slow free-tier CPU.
-const UPLOAD_TIMEOUT_MS = 120000
+// Kept above the backend's own INFERENCE_TIMEOUT_SECONDS (render.yaml) so
+// the client waits for that server-side fail-fast response instead of
+// aborting first and showing a misleading "couldn't reach server" error
+// while the server is still legitimately counting a dense photo.
+const UPLOAD_TIMEOUT_MS = 180000
 
 async function fetchWithTimeout(url, options = {}, timeoutMs = REQUEST_TIMEOUT_MS) {
   const controller = new AbortController()

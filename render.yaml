@@ -59,5 +59,11 @@ services:
       # Belt-and-suspenders: if a photo is unusually dense/large and still
       # runs long, fail fast with a clear, retryable error well before the
       # client's own 120s upload timeout gives up silently.
+      # Raised from 90s: verified live that a very dense (~187-pill) photo
+      # genuinely needs more than 90s to tile through on this CPU even warm
+      # and post-OOM-fix — that's real inference time, not a hang. Frontend's
+      # UPLOAD_TIMEOUT_MS (api.js) raised to stay above this so the client
+      # doesn't abort and show a false "couldn't reach server" error while
+      # the server is still legitimately working.
       - key: INFERENCE_TIMEOUT_SECONDS
-        value: "90"
+        value: "170"
