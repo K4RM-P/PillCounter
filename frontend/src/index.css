@@ -905,8 +905,9 @@ code {
 }
 
 .marker-hit-target {
-  /* width/height/margin are set inline per-marker (MarkerOverlay.jsx),
-     sized proportionally to the detected pill. */
+  /* width/height/margin set inline (MarkerOverlay.jsx) — fixed small size
+     for every marker, not scaled to detected pill size (that was tried and
+     made circles too large in practice on dense photos). */
   position: absolute;
   display: flex;
   align-items: center;
@@ -914,7 +915,7 @@ code {
 }
 
 .marker-dot {
-  /* width/height set inline per-marker; see .marker-hit-target above. */
+  /* width/height set inline; see .marker-hit-target above. */
   border-radius: 50%;
   border: 1.5px solid white;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);

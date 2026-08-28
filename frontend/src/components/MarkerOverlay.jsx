@@ -1,13 +1,13 @@
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { vibrate } from '../haptics'
 
-// Below this, a circle sized to the true pill would be too small to see or
-// tap reliably — floor the visual dot there (the tap target has its own,
-// larger floor below).
-const MIN_DOT_PX = 8
-// Manually-added markers and any detection missing a size fall back to this.
-const DEFAULT_DOT_PX = 14
-const MIN_HIT_TARGET_PX = 24
+// Fixed, small marker size — proportional sizing (based on detected pill
+// size) was tried and made circles too large in practice on dense photos,
+// so every marker gets the same small dot regardless of pill size. The tap
+// target is a bit larger than the visible dot for reliable removal without
+// the dot itself visually overlapping neighboring pills.
+const DOT_PX = 10
+const HIT_TARGET_PX = 22
 
 // Renders an image with editable pill markers overlaid.
 // markers are stored in normalized (0-1) image coordinates so they stay
@@ -15,22 +15,6 @@ const MIN_HIT_TARGET_PX = 24
 export default function MarkerOverlay({ imageUrl, markers, onAddMarker, onRemoveMarker, editable }) {
   const imgRef = useRef(null)
   const [zoomed, setZoomed] = useState(false)
-  // Marker `size` is normalized to the *original* image width (see
-  // counter.py) so it survives any downscaling/re-encoding — converting it
-  // to an on-screen circle diameter needs the image's actual rendered
-  // width, which changes with viewport size and the zoom toggle below.
-  const [renderedWidth, setRenderedWidth] = useState(0)
-
-  useEffect(() => {
-    const el = imgRef.current
-    if (!el) return
-    const observer = new ResizeObserver((entries) => {
-      const width = entries[0]?.contentRect.width
-      if (width) setRenderedWidth(width)
-    })
-    observer.observe(el)
-    return () => observer.disconnect()
-  }, [])
 
   function handleImageClick(e) {
     if (!editable || !onAddMarker) return
@@ -67,40 +51,33 @@ export default function MarkerOverlay({ imageUrl, markers, onAddMarker, onRemove
           transition: 'width 0.2s ease',
         }}
       />
-      {markers.map((marker, index) => {
-        const dotPx =
-          marker.size && renderedWidth
-            ? Math.max(MIN_DOT_PX, marker.size * renderedWidth)
-            : DEFAULT_DOT_PX
-        const hitPx = Math.max(MIN_HIT_TARGET_PX, dotPx)
-        return (
-          <div
-            key={index}
-            className="marker-hit-target"
-            onClick={(e) => {
-              if (!editable) return
-              e.stopPropagation()
-              onRemoveMarker(index)
-              vibrate(8)
-            }}
-            title={editable ? markerTitle(marker) : undefined}
-            style={{
-              left: `${marker.x * 100}%`,
-              top: `${marker.y * 100}%`,
-              width: hitPx,
-              height: hitPx,
-              marginLeft: -hitPx / 2,
-              marginTop: -hitPx / 2,
-              cursor: editable ? 'pointer' : 'default',
-            }}
-          >
-            <span
-              className="marker-dot"
-              style={{ width: dotPx, height: dotPx, background: markerColor(marker.confidence) }}
-            />
-          </div>
-        )
-      })}
+      {markers.map((marker, index) => (
+        <div
+          key={index}
+          className="marker-hit-target"
+          onClick={(e) => {
+            if (!editable) return
+            e.stopPropagation()
+            onRemoveMarker(index)
+            vibrate(8)
+          }}
+          title={editable ? markerTitle(marker) : undefined}
+          style={{
+            left: `${marker.x * 100}%`,
+            top: `${marker.y * 100}%`,
+            width: HIT_TARGET_PX,
+            height: HIT_TARGET_PX,
+            marginLeft: -HIT_TARGET_PX / 2,
+            marginTop: -HIT_TARGET_PX / 2,
+            cursor: editable ? 'pointer' : 'default',
+          }}
+        >
+          <span
+            className="marker-dot"
+            style={{ width: DOT_PX, height: DOT_PX, background: markerColor(marker.confidence) }}
+          />
+        </div>
+      ))}
     </div>
   )
 }
