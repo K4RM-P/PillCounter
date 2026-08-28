@@ -10,6 +10,7 @@ export default function CameraCapture({ onCapture, onUnavailable }) {
   const [ready, setReady] = useState(false)
   const [error, setError] = useState(null)
   const [flash, setFlash] = useState(false)
+  const [focusPoint, setFocusPoint] = useState(null)
 
   useEffect(() => {
     let cancelled = false
@@ -68,13 +69,24 @@ export default function CameraCapture({ onCapture, onUnavailable }) {
     }, 'image/jpeg', 0.9)
   }
 
+  function handleFrameTap(e) {
+    if (!ready) return
+    const rect = e.currentTarget.getBoundingClientRect()
+    const point = { x: e.clientX - rect.left, y: e.clientY - rect.top, id: Date.now() }
+    setFocusPoint(point)
+    setTimeout(() => setFocusPoint((p) => (p?.id === point.id ? null : p)), 600)
+  }
+
   if (error) return null
 
   return (
-    <div className="camera-frame">
+    <div className="camera-frame" onClick={handleFrameTap}>
       <video ref={videoRef} playsInline muted className="camera-video" />
       {!ready && <div className="camera-loading">Starting camera...</div>}
       {flash && <div className="shutter-flash" />}
+      {focusPoint && (
+        <span className="focus-ring" style={{ left: focusPoint.x, top: focusPoint.y }} />
+      )}
       <button
         className="shutter-btn"
         onClick={handleShutter}

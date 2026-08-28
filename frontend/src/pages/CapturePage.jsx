@@ -6,10 +6,12 @@ import { enqueuePhoto, isNetworkError } from '../offlineQueue'
 import CameraCapture from '../components/CameraCapture'
 import { showToast } from '../toast'
 import { vibrate } from '../haptics'
+import { setUploading } from '../uploadState'
 
 // Remembered across visits so an A/B comparison session doesn't reset the
 // toggle on every photo.
 const MODEL_VERSION_KEY = 'pillcount_model_version'
+const COACH_MARK_KEY = 'pillcount_seen_capture_tip'
 
 const PROCESSING_STAGES = [
   { afterMs: 0, text: 'Preparing photo...' },
@@ -26,8 +28,14 @@ export default function CapturePage() {
   const [modelVersion, setModelVersion] = useState(
     () => localStorage.getItem(MODEL_VERSION_KEY) || 'v2',
   )
+  const [showTip, setShowTip] = useState(() => !localStorage.getItem(COACH_MARK_KEY))
   const navigate = useNavigate()
   const lastFileRef = useRef(null)
+
+  function dismissTip() {
+    setShowTip(false)
+    localStorage.setItem(COACH_MARK_KEY, '1')
+  }
 
   function selectModelVersion(version) {
     vibrate(8)
@@ -39,6 +47,7 @@ export default function CapturePage() {
     if (!file) return
     lastFileRef.current = file
     setLoading(true)
+    setUploading(true)
     setError(null)
     setStage(PROCESSING_STAGES[0].text)
     const timers = PROCESSING_STAGES.slice(1).map((s) => setTimeout(() => setStage(s.text), s.afterMs))
@@ -79,6 +88,7 @@ export default function CapturePage() {
     } finally {
       timers.forEach(clearTimeout)
       setLoading(false)
+      setUploading(false)
     }
   }
 
@@ -93,6 +103,15 @@ export default function CapturePage() {
         <h2>Count Pills</h2>
         <p className="hint">Spread pills out on a flat, contrasting surface so they don't overlap.</p>
       </div>
+
+      {showTip && (
+        <div className="badge badge-warn badge-warn-icon" style={{ alignSelf: 'stretch', justifyContent: 'space-between' }}>
+          <span>Tip: tap directly on the shutter to capture, then tap the photo to add or remove pill markers.</span>
+          <button type="button" className="btn btn-icon" onClick={dismissTip} aria-label="Dismiss tip" style={{ padding: '2px 8px' }}>
+            Got it
+          </button>
+        </div>
+      )}
 
       <div className="segmented" role="radiogroup" aria-label="Model version" style={{ alignSelf: 'stretch' }}>
         {[

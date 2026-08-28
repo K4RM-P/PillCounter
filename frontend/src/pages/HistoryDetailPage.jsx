@@ -20,13 +20,17 @@ export default function HistoryDetailPage() {
     return (
       <div className="page">
         <div className="skeleton" style={{ height: 28, width: 160 }} />
-        <div className="skeleton" style={{ flex: 1 }} />
+        <div className="skeleton detail-skeleton-image" />
       </div>
     )
   }
 
   return (
     <div className="page">
+      <div className="print-header">
+        <span className="brand">PillCount</span>
+        <span className="meta">{new Date().toLocaleString()}</span>
+      </div>
       <div className="row" style={{ justifyContent: 'space-between' }}>
         <div className="row" style={{ gap: 10 }}>
           <Link to="/history" className="btn btn-icon no-print" aria-label="Back to history">

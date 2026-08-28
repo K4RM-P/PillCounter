@@ -129,7 +129,15 @@ export default function HistoryPage() {
             <div className="value">{stats.total}</div>
             <div className="label">Total counts</div>
           </div>
-          <div className="stat-tile">
+          <div
+            className="stat-tile"
+            role="button"
+            tabIndex={0}
+            onClick={() => selectDays('7')}
+            onKeyDown={(e) => e.key === 'Enter' && selectDays('7')}
+            style={{ cursor: 'pointer' }}
+            title="Show only this week"
+          >
             <div className="value">{stats.thisWeek}</div>
             <div className="label">This week</div>
           </div>

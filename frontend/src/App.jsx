@@ -12,11 +12,14 @@ import { clearToken, isAuthenticated } from './auth'
 import { applyTheme, getTheme, toggleTheme } from './theme'
 import { flushQueue, queueLength } from './offlineQueue'
 import { saveCount, uploadForCount, warmBackend } from './api'
+import { isUploading, subscribeUploading } from './uploadState'
+import { showToast } from './toast'
 
 function App() {
   const navigate = useNavigate()
   const location = useLocation()
   const [pending, setPending] = useState(queueLength())
+  const [uploading, setUploadingState] = useState(isUploading())
   const [dark, setDark] = useState(() => {
     const t = getTheme()
     return t === 'dark' || (t === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)
@@ -27,6 +30,8 @@ function App() {
   }, [])
 
   useEffect(() => warmBackend(), [])
+
+  useEffect(() => subscribeUploading(setUploadingState), [])
 
   useEffect(() => {
     window.scrollTo(0, 0)
@@ -121,7 +126,19 @@ function App() {
             <CameraIcon />
             <span>Count</span>
           </Link>
-          <Link to="/history" className={`navlink${location.pathname.startsWith('/history') ? ' active' : ''}`}>
+          <Link
+            to="/history"
+            className={`navlink${location.pathname.startsWith('/history') ? ' active' : ''}`}
+            onClick={(e) => {
+              if (uploading) {
+                e.preventDefault()
+                showToast("Wait for the current photo to finish counting first", { variant: 'warn' })
+              }
+            }}
+            style={uploading ? { opacity: 0.4 } : undefined}
+            aria-disabled={uploading}
+            title={uploading ? 'Wait for the current count to finish' : undefined}
+          >
             <span className="navlink-icon-wrap">
               <HistoryIcon />
               {pending > 0 && <span className="badge-dot" />}
