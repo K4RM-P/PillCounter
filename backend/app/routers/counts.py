@@ -21,8 +21,11 @@ router = APIRouter(prefix="/api", dependencies=[Depends(require_auth)])
 # count_pills is synchronous CPU-bound work; running it in a dedicated
 # executor (rather than FastAPI's default one) lets us attach a hard
 # wall-clock timeout via asyncio.wait_for without touching the rest of the
-# app's thread pool.
-_inference_executor = ThreadPoolExecutor(max_workers=2)
+# app's thread pool. Worker count also bounds peak memory: two concurrent
+# inference calls each holding their own tiled/multi-scale image buffers is
+# what pushed the free-tier instance over its 512MB ceiling, so Render caps
+# this to 1 to force requests to queue instead of running in parallel.
+_inference_executor = ThreadPoolExecutor(max_workers=settings.INFERENCE_MAX_WORKERS)
 
 
 @router.post("/count", response_model=CountResponse)
@@ -32,6 +35,16 @@ async def count_image(file: UploadFile, model_version: Optional[str] = Form(defa
     image = cv2.imdecode(np_data, cv2.IMREAD_COLOR)
     if image is None:
         raise HTTPException(status_code=400, detail="Could not decode image")
+
+    decoded_height, decoded_width = image.shape[:2]
+    longest_side = max(decoded_height, decoded_width)
+    if longest_side > settings.MAX_IMAGE_DIMENSION:
+        scale = settings.MAX_IMAGE_DIMENSION / longest_side
+        image = cv2.resize(
+            image,
+            (round(decoded_width * scale), round(decoded_height * scale)),
+            interpolation=cv2.INTER_AREA,
+        )
 
     weights_path = None
     ensemble = False

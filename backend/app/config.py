@@ -85,6 +85,29 @@ class Settings:
     # Inference device: "auto" picks MPS/CUDA if available, else CPU.
     INFERENCE_DEVICE: str = os.getenv("INFERENCE_DEVICE", "auto")
 
+    # get_model() lru_cache size — each cached entry is a full YOLO model
+    # resident in memory. Free-tier hosting has a hard 512MB ceiling, and a
+    # client flipping between v2/v3 (or ensemble touching both) can easily
+    # hold 2+ models cached at once; left generous by default for local dev
+    # where memory isn't a constraint. Render overrides this to 1 so
+    # switching versions evicts the previous one instead of stacking.
+    MODEL_CACHE_SIZE: int = int(os.getenv("MODEL_CACHE_SIZE", "4"))
+
+    # Largest dimension (px) a decoded upload is allowed to keep before
+    # inference — anything bigger is downscaled server-side regardless of
+    # what the client sent. This is the actual memory ceiling: a 6000px
+    # image plus its tiled/CLAHE/multi-scale working copies can run several
+    # hundred MB per in-flight request on its own. The frontend already caps
+    # uploads at 6000px, but this is the backstop that holds regardless of
+    # client behavior. Render overrides this lower to fit the free tier.
+    MAX_IMAGE_DIMENSION: int = int(os.getenv("MAX_IMAGE_DIMENSION", "6000"))
+
+    # Concurrent inference workers (routers/counts.py). Each worker can hold
+    # a large image plus tiled/multi-scale copies in memory at once, so this
+    # doubles as a peak-memory cap on free-tier hosting; requests queue
+    # behind INFERENCE_TIMEOUT_SECONDS instead of running in parallel.
+    INFERENCE_MAX_WORKERS: int = int(os.getenv("INFERENCE_MAX_WORKERS", "2"))
+
     # Ensemble mode (see routers/counts.py) runs the *entire* tiled pipeline
     # twice — once per model version — which on Render's free shared CPU is
     # enough on its own to blow past both the client's upload timeout and

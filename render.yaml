@@ -41,6 +41,21 @@ services:
       # default single model instead of running (or hanging) at 2x cost.
       - key: ENSEMBLE_ENABLED
         value: "false"
+      # The instance was hitting Render's 512MB memory ceiling. Two
+      # contributors: get_model()'s lru_cache holding multiple full YOLO
+      # models resident at once (a client flipping v2/v3), and large decoded
+      # images (up to 6000px from the frontend) each carrying several
+      # hundred MB of tiled/multi-scale working buffers per in-flight
+      # request. Capping the model cache to 1, the image dimension lower,
+      # and inference to a single worker at a time bounds peak memory to
+      # roughly one model + one request's buffers. Remove these overrides
+      # once off the free plan.
+      - key: MODEL_CACHE_SIZE
+        value: "1"
+      - key: MAX_IMAGE_DIMENSION
+        value: "3000"
+      - key: INFERENCE_MAX_WORKERS
+        value: "1"
       # Belt-and-suspenders: if a photo is unusually dense/large and still
       # runs long, fail fast with a clear, retryable error well before the
       # client's own 120s upload timeout gives up silently.

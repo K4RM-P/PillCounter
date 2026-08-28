@@ -23,7 +23,7 @@ def resolve_device() -> str:
     return "cpu"
 
 
-@lru_cache(maxsize=4)
+@lru_cache(maxsize=settings.MODEL_CACHE_SIZE)
 def get_model(weights_path: str | None = None) -> YOLO:
     """Cached per weights path — lets multiple model versions (e.g. for A/B
     testing candidate weights against the production default) be loaded and

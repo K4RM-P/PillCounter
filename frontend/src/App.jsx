@@ -9,6 +9,7 @@ import LoginPage from './pages/LoginPage'
 import RequireAuth from './components/RequireAuth'
 import ToastHost from './components/ToastHost'
 import NetworkBanner from './components/NetworkBanner'
+import InstallPrompt from './components/InstallPrompt'
 import { isAuthenticated } from './auth'
 import { applyTheme, getTheme, toggleTheme } from './theme'
 import { flushQueue, queueLength } from './offlineQueue'
@@ -97,6 +98,7 @@ function App() {
       )}
 
       {showChrome && <NetworkBanner />}
+      {showChrome && <InstallPrompt />}
 
       <div className="route-fade" key={location.pathname}>
         <Routes>
